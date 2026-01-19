@@ -3,7 +3,10 @@ name: Actualizar tasas
 on:
   schedule:
     - cron: "0 15 * * *"   # todos los días a las 15:00 UTC (9:00 AM hora de México)
-  workflow_dispatch:        # permite ejecutarlo manualmente desde GitHub
+  workflow_dispatch:
+
+permissions:
+  contents: write   # 👈 esto da permiso de escritura al GITHUB_TOKEN
 
 jobs:
   run-scraper:
