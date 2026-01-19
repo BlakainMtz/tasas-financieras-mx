@@ -36,5 +36,11 @@ jobs:
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git add data/tasas.json
+<<<<<<< HEAD
           git diff --cached --quiet || git commit -m "Actualización automática de tasas"
           git push https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }} HEAD:main
+=======
+          # Solo hacer commit si hay cambios
+          git diff --cached --quiet || git commit -m "Actualización automática de tasas"
+          git push
+>>>>>>> c3e4251569c69542f746eb31b87de5b23eb87256
