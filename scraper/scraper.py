@@ -83,10 +83,12 @@ def obtener_tasa_bonddia_cetesdirecto():
         for i, celda in enumerate(celdas):
             texto = celda.get_text(strip=True)
             if "Rendimiento diario" in texto:
-                # La siguiente celda contiene el valor (ej. "6.93*")
-                siguiente = celdas[i + 1].get_text(strip=True)
-                tasa = siguiente.replace("*", "").replace(",", ".")
-                return round(float(tasa), 2)
+                # Avanzar algunas posiciones hasta encontrar el valor con dígitos
+                for j in range(i+1, min(i+10, len(celdas))):
+                    valor = celdas[j].get_text(strip=True)
+                    if valor and any(ch.isdigit() for ch in valor):
+                        tasa = valor.replace("*", "").replace(",", ".")
+                        return round(float(tasa), 2)
 
     except Exception as e:
         print("Error al obtener BONDDIA desde Cetesdirecto:", e)
