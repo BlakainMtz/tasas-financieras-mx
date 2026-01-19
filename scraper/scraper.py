@@ -3,6 +3,30 @@ from bs4 import BeautifulSoup
 import json
 from datetime import datetime
 import re
+import requests
+
+def obtener_tasa_nu():
+    try:
+        url = "https://api.nu.com.mx/interest-rates"
+        headers = {
+            "User-Agent": "Mozilla/5.0",
+            "Accept": "application/json"
+        }
+
+        r = requests.get(url, headers=headers, timeout=10)
+        r.raise_for_status()
+        data = r.json()
+
+        tasa = data.get("rate")
+
+        if tasa:
+            return round(float(tasa) * 100, 2)
+
+    except Exception as e:
+        print("Error Nu:", e)
+
+    return "-"
+
 
 URL_NU = "https://nu.com.mx/cuenta/rendimientos/"
 DATA_PATH = "data/tasas.json"
