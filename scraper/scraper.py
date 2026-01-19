@@ -43,32 +43,33 @@ def obtener_tasas_nu():
             bloques = page.query_selector_all("div.MobileYieldBox__StyledBox-sc-849ojw-0")
 
             for bloque in bloques:
-                # Extraer el título del plazo
-                titulo_el = bloque.query_selector("p.MobileYieldBox__StyledRowTitle-sc-849ojw-1")
+                # Extraer todos los títulos dentro del bloque
+                titulos = bloque.query_selector_all("p.MobileYieldBox__StyledRowTitle-sc-849ojw-1")
                 porcentaje_el = bloque.query_selector("span.MobileYieldBox__StyledRowPercentage-sc-849ojw-4")
 
-                if not titulo_el or not porcentaje_el:
+                if not titulos or not porcentaje_el:
                     continue
 
-                titulo = titulo_el.inner_text().lower()
                 valor_txt = porcentaje_el.inner_text().strip()
-
                 try:
                     valor = float(valor_txt.replace("%", "").strip())
                 except:
                     continue
 
-                # Mapear según el título
-                if "turbo" in titulo:
-                    tasas["cajita_turbo"] = valor
-                elif "7 días" in titulo:
-                    tasas["1_semana"] = valor
-                elif "28 días" in titulo:
-                    tasas["1_mes"] = valor
-                elif "90 días" in titulo:
-                    tasas["3_meses"] = valor
-                elif "180 días" in titulo:
-                    tasas["6_meses"] = valor
+                # Revisar cada título para identificar el plazo correcto
+                for titulo_el in titulos:
+                    titulo = titulo_el.inner_text().lower()
+
+                    if "turbo" in titulo:
+                        tasas["cajita_turbo"] = valor
+                    elif "7 días" in titulo:
+                        tasas["1_semana"] = valor
+                    elif "28 días" in titulo:
+                        tasas["1_mes"] = valor
+                    elif "90 días" in titulo:
+                        tasas["3_meses"] = valor
+                    elif "180 días" in titulo:
+                        tasas["6_meses"] = valor
 
             browser.close()
             return tasas
