@@ -2,7 +2,6 @@ import requests
 import json
 from datetime import datetime
 from bs4 import BeautifulSoup
-import sys
 
 # =========================
 # CONFIGURACIÓN GENERAL
@@ -45,12 +44,12 @@ def obtener_tasa_banxico(serie_id):
         if dato and dato != "N/E":
             return round(float(dato), 2)
     except Exception as e:
-        print(f"Error Banxico {serie_id}:", e, file=sys.stderr)
+        return f"Error Banxico {serie_id}: {e}"
     return "-"
 
 
 # =========================
-# BONDDIA (SCRAPING CETESDIRECTO CON DEBUG)
+# BONDDIA (SCRAPING CETESDIRECTO CON DEBUG EN JSON)
 # =========================
 
 def obtener_tasa_bonddia_cetesdirecto():
@@ -65,22 +64,21 @@ def obtener_tasa_bonddia_cetesdirecto():
         for i, celda in enumerate(celdas):
             texto = celda.get_text(strip=True)
             if "Rendimiento diario" in texto:
-                print("DEBUG: Encontrado 'Rendimiento diario' en celda", i, file=sys.stderr)
-                # Mostrar las siguientes 10 celdas
-                for j in range(i+1, min(i+10, len(celdas))):
-                    print("DEBUG celda", j, ":", celdas[j].get_text(strip=True), file=sys.stderr)
+                # Guardar las siguientes 10 celdas para depuración
+                cercanas = [c.get_text(strip=True) for c in celdas[i+1:i+11]]
 
                 # Buscar valor con dígitos
-                for j in range(i+1, min(i+10, len(celdas))):
-                    valor = celdas[j].get_text(strip=True)
+                for valor in cercanas:
                     if valor and any(ch.isdigit() for ch in valor):
                         tasa = valor.replace("*", "").replace(",", ".")
-                        return round(float(tasa), 2)
+                        return round(float(tasa), 2), cercanas
+
+                return "-", cercanas
 
     except Exception as e:
-        print("Error al obtener BONDDIA desde Cetesdirecto:", e, file=sys.stderr)
+        return f"Error BONDDIA: {e}", []
 
-    return "-"
+    return "-", []
 
 
 # =========================
@@ -88,6 +86,8 @@ def obtener_tasa_bonddia_cetesdirecto():
 # =========================
 
 def main():
+    bonddia_valor, bonddia_debug = obtener_tasa_bonddia_cetesdirecto()
+
     data = {
         "last_update": datetime.utcnow().isoformat() + "Z",
         "entidades": {
@@ -100,12 +100,13 @@ def main():
                 "1_ano": "-"
             },
             "BONDDIA": {
-                "a_la_vista": obtener_tasa_bonddia_cetesdirecto(),
+                "a_la_vista": bonddia_valor,
                 "1_semana": "-",
                 "1_mes": "-",
                 "3_meses": "-",
                 "6_meses": "-",
-                "1_ano": "-"
+                "1_ano": "-",
+                "debug_celdas": bonddia_debug  # 👈 aquí verás las celdas cercanas
             },
             "CETES": {
                 "a_la_vista": "-",
