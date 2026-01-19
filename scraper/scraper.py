@@ -206,3 +206,4 @@ def main():
     print("✅ Tasas actualizadas correctamente")
 
 if __name__ == "__main__":
+    main()
