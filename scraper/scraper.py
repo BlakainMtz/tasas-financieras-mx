@@ -99,28 +99,25 @@ def obtener_tasas_mercadopago():
 
             tasa = "-"
 
-            # Buscar el bloque que contiene "Tasa de Rendimiento Anual Fija"
-            bloques = page.query_selector_all("div, p, span")
-            for bloque in bloques:
+            # Buscar específicamente el h3 con la clase donde aparece el porcentaje
+            bloque = page.query_selector("h3.acqui-animated-info-block__content-wordings-sub-title")
+            if bloque:
                 texto = bloque.inner_text().lower()
-                if "tasa de rendimiento anual fija" in texto:
-                    # Buscar el porcentaje dentro del mismo bloque
-                    porcentaje_el = bloque.query_selector("span, p")
-                    if porcentaje_el:
-                        valor_txt = porcentaje_el.inner_text().strip()
-                        if "%" in valor_txt:
-                            try:
-                                tasa = float(valor_txt.replace("%", "").strip())
-                            except:
-                                pass
-                    break
+                # Ejemplo: "Ganancias de hasta 13% anual"
+                for part in texto.split():
+                    if "%" in part:
+                        try:
+                            tasa = float(part.replace("%", "").strip())
+                            break
+                        except:
+                            continue
 
             browser.close()
-            return {"mercadopago": tasa}
+            return {"rendimiento_anual_fijo": tasa}
 
     except Exception as e:
         print("Error al obtener tasa de Mercado Pago:", e)
-        return {"mercadopago": "-"}
+        return {"rendimiento_anual_fijo": "-"}
 
 # =========================
 # CETES - TASA PROMEDIO SUBASTA
