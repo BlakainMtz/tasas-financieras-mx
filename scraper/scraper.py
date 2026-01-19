@@ -2,6 +2,7 @@ import requests
 import json
 from datetime import datetime
 from bs4 import BeautifulSoup
+import sys
 
 # =========================
 # CONFIGURACIÓN GENERAL
@@ -20,10 +21,6 @@ HEADERS_BANXICO = {
 # =========================
 
 def obtener_tasa_nu():
-    """
-    Nu no expone API pública estable.
-    Se usa valor editorial controlado.
-    """
     return 7.0
 
 
@@ -38,32 +35,22 @@ SERIES_CETES = {
     "1_ano": "SF43945"    # 364 días
 }
 
-
 def obtener_tasa_banxico(serie_id):
-    """
-    Obtiene una tasa desde Banxico (SIE)
-    usando la serie especificada.
-    """
     url = f"https://www.banxico.org.mx/SieAPIRest/service/v1/series/{serie_id}/datos/oportuno"
-
     try:
         r = requests.get(url, headers=HEADERS_BANXICO, timeout=15)
         r.raise_for_status()
         data = r.json()
-
         dato = data["bmx"]["series"][0]["datos"][0]["dato"]
-
         if dato and dato != "N/E":
             return round(float(dato), 2)
-
     except Exception as e:
-        print(f"Error Banxico {serie_id}:", e)
-
+        print(f"Error Banxico {serie_id}:", e, file=sys.stderr)
     return "-"
 
 
 # =========================
-# BONDDIA (SCRAPING CETESDIRECTO)
+# BONDDIA (SCRAPING CETESDIRECTO CON DEBUG)
 # =========================
 
 def obtener_tasa_bonddia_cetesdirecto():
@@ -78,10 +65,10 @@ def obtener_tasa_bonddia_cetesdirecto():
         for i, celda in enumerate(celdas):
             texto = celda.get_text(strip=True)
             if "Rendimiento diario" in texto:
-                print("DEBUG: Encontrado 'Rendimiento diario' en celda", i)
-                # Mostrar las siguientes 10 celdas para inspección
+                print("DEBUG: Encontrado 'Rendimiento diario' en celda", i, file=sys.stderr)
+                # Mostrar las siguientes 10 celdas
                 for j in range(i+1, min(i+10, len(celdas))):
-                    print("DEBUG celda", j, ":", celdas[j].get_text(strip=True))
+                    print("DEBUG celda", j, ":", celdas[j].get_text(strip=True), file=sys.stderr)
 
                 # Buscar valor con dígitos
                 for j in range(i+1, min(i+10, len(celdas))):
@@ -91,7 +78,7 @@ def obtener_tasa_bonddia_cetesdirecto():
                         return round(float(tasa), 2)
 
     except Exception as e:
-        print("Error al obtener BONDDIA desde Cetesdirecto:", e)
+        print("Error al obtener BONDDIA desde Cetesdirecto:", e, file=sys.stderr)
 
     return "-"
 
