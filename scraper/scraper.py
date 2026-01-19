@@ -103,7 +103,7 @@ def obtener_tasas_mercadopago():
             bloque = page.query_selector("h3.acqui-animated-info-block__content-wordings-sub-title")
             if bloque:
                 texto = bloque.inner_text().lower()
-                # Ejemplo: "Ganancias de hasta 13% anual"
+                # Ejemplo: "ganancias de hasta 13% anual"
                 for part in texto.split():
                     if "%" in part:
                         try:
