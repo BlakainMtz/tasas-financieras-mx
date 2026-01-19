@@ -41,37 +41,32 @@ def obtener_tasas_nu():
                 "cajita_turbo": "-"
             }
 
-            # Capturar todos los textos visibles en orden
-            elementos = page.query_selector_all("span, div, p")
-            textos = [(el.inner_text() or "").strip() for el in elementos]
-
-            for i, txt in enumerate(textos):
-                # Buscar porcentajes reales (>=7 para evitar valores de estilos como 3.28%)
-                if "%" not in txt:
+            # Seleccionar todos los spans que contienen el porcentaje
+            porcentajes = page.query_selector_all("span.MobileYieldBox__StyledRowPercentage-sc-849ojw-4")
+            for el in porcentajes:
+                valor_txt = el.inner_text().strip()
+                if "%" not in valor_txt:
                     continue
                 try:
-                    valor = float(txt.replace("%", "").strip())
+                    valor = float(valor_txt.replace("%", "").strip())
                 except:
                     continue
-                if valor < 6:  # descartar valores falsos de estilos
-                    continue
 
-                # Buscar el texto siguiente que indique el plazo
-                if i + 1 < len(textos):
-                    siguiente = textos[i+1].lower()
+                # Buscar el bloque completo (padre) para identificar el plazo
+                bloque = el.evaluate("el => el.parentElement.innerText").lower()
 
-                    if "turbo" in siguiente:
-                        tasas["cajita_turbo"] = valor
-                    elif "24/7" in siguiente or "disponible" in siguiente:
-                        tasas["a_la_vista"] = valor
-                    elif "7" in siguiente and "día" in siguiente:
-                        tasas["1_semana"] = valor
-                    elif "28" in siguiente and "día" in siguiente:
-                        tasas["1_mes"] = valor
-                    elif "90" in siguiente and "día" in siguiente:
-                        tasas["3_meses"] = valor
-                    elif "180" in siguiente and "día" in siguiente:
-                        tasas["6_meses"] = valor
+                if "turbo" in bloque:
+                    tasas["cajita_turbo"] = valor
+                elif "24/7" in bloque or "disponible" in bloque:
+                    tasas["a_la_vista"] = valor
+                elif "7" in bloque and "día" in bloque:
+                    tasas["1_semana"] = valor
+                elif "28" in bloque and "día" in bloque:
+                    tasas["1_mes"] = valor
+                elif "90" in bloque and "día" in bloque:
+                    tasas["3_meses"] = valor
+                elif "180" in bloque and "día" in bloque:
+                    tasas["6_meses"] = valor
 
             browser.close()
             return tasas
