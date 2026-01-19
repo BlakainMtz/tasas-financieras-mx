@@ -3,51 +3,62 @@ import json
 from datetime import datetime
 
 # =========================
-# CONFIGURACIÓN
+# CONFIGURACIÓN GENERAL
 # =========================
 
 DATA_PATH = "data/tasas.json"
 
-# Token oficial de Banxico
 BANXICO_TOKEN = "2a245effb487de0215dc2b5f5282695e9caeeb68d8f734130e940c87f60c8f00"
 
+HEADERS_BANXICO = {
+    "Bmx-Token": BANXICO_TOKEN
+}
 
 # =========================
-# FUENTES DE DATOS
+# NU (VALOR CONTROLADO)
 # =========================
 
 def obtener_tasa_nu():
     """
-    Tasa editorial controlada de Nu.
-    Actualizar manualmente cuando Nu cambie su rendimiento.
+    Nu no expone API pública estable.
+    Se usa valor editorial controlado.
     """
     return 7.0
 
 
-def obtener_cetes_28():
+# =========================
+# CETES - TASA PROMEDIO SUBASTA
+# =========================
+
+SERIES_CETES = {
+    "1_mes": "SF43936",   # 28 días
+    "3_meses": "SF43937", # 91 días
+    "6_meses": "SF43938", # 182 días
+    "1_ano": "SF43939"    # 364 días
+}
+
+
+def obtener_cetes_promedio(serie_id):
     """
-    CETES 28 días desde API oficial de Banxico
-    Serie: SF43783
+    Obtiene la tasa promedio ponderada de la subasta
+    directamente desde Banxico (SIE).
     """
+    url = f"https://www.banxico.org.mx/SieAPIRest/service/v1/series/{serie_id}/datos/oportuno"
+
     try:
-        serie = "SF43783"  # CETES 28 días
-        url = f"https://www.banxico.org.mx/SieAPIRest/service/v1/series/{serie}/datos/oportuno"
+        r = requests.get(url, headers=HEADERS_BANXICO, timeout=15)
+        r.raise_for_status()
+        data = r.json()
 
-        headers = {
-            "Bmx-Token": BANXICO_TOKEN
-        }
+        dato = data["bmx"]["series"][0]["datos"][0]["dato"]
 
-        response = requests.get(url, headers=headers, timeout=10)
-        response.raise_for_status()
-
-        data = response.json()
-        valor = data["bmx"]["series"][0]["datos"][0]["dato"]
-
-        return float(valor)
+        if dato and dato != "N/E":
+            return round(float(dato), 2)
 
     except Exception as e:
-        print("Error obteniendo CETES:", e)
-        return "-"
+        print(f"Error CETES {serie_id}:", e)
+
+    return "-"
 
 
 # =========================
@@ -69,10 +80,10 @@ def main():
             "CETES": {
                 "a_la_vista": "-",
                 "1_semana": "-",
-                "1_mes": obtener_cetes_28(),
-                "3_meses": "-",
-                "6_meses": "-",
-                "1_ano": "-"
+                "1_mes": obtener_cetes_promedio(SERIES_CETES["1_mes"]),
+                "3_meses": obtener_cetes_promedio(SERIES_CETES["3_meses"]),
+                "6_meses": obtener_cetes_promedio(SERIES_CETES["6_meses"]),
+                "1_ano": obtener_cetes_promedio(SERIES_CETES["1_ano"])
             }
         }
     }
@@ -80,7 +91,7 @@ def main():
     with open(DATA_PATH, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2, ensure_ascii=False)
 
-    print("Tasas actualizadas correctamente")
+    print("✅ Tasas actualizadas correctamente")
 
 
 if __name__ == "__main__":
