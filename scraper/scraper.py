@@ -3,7 +3,6 @@ import re
 import json
 import requests
 from datetime import datetime, timezone
-from bs4 import BeautifulSoup
 from playwright.sync_api import sync_playwright
 
 # =========================
@@ -19,12 +18,73 @@ HEADERS_BANXICO = {
 }
 
 # =========================
-# NU (VALOR CONTROLADO)
+# NU (SCRAPING RENDIMIENTOS)
 # =========================
 
-def obtener_tasa_nu():
-    return 7.0
+def obtener_tasas_nu():
+    try:
+        with sync_playwright() as p:
+            browser = p.chromium.launch(headless=True)
+            page = browser.new_page()
+            page.goto("https://nu.com.mx/cuenta/rendimientos/", timeout=60000)
+            page.wait_for_load_state("networkidle")
 
+            texto = page.inner_text("body")
+            browser.close()
+
+            tasas = {
+                "a_la_vista": "-",
+                "1_semana": "-",
+                "1_mes": "-",
+                "3_meses": "-",
+                "6_meses": "-",
+                "1_ano": "-",
+                "cajita_turbo": "-"
+            }
+
+            # Cajita Turbo
+            match = re.search(r"Cajita Turbo.*?(\d+\.\d+)%", texto)
+            if match:
+                tasas["cajita_turbo"] = round(float(match.group(1)), 2)
+
+            # Disponible 24/7
+            match = re.search(r"Disponible 24/7.*?(\d+\.\d+)%", texto)
+            if match:
+                tasas["a_la_vista"] = round(float(match.group(1)), 2)
+
+            # 7 días
+            match = re.search(r"7\s*[dD][íi]as.*?(\d+\.\d+)%", texto)
+            if match:
+                tasas["1_semana"] = round(float(match.group(1)), 2)
+
+            # 28 días
+            match = re.search(r"28\s*[dD][íi]as.*?(\d+\.\d+)%", texto)
+            if match:
+                tasas["1_mes"] = round(float(match.group(1)), 2)
+
+            # 90 días
+            match = re.search(r"90\s*[dD][íi]as.*?(\d+\.\d+)%", texto)
+            if match:
+                tasas["3_meses"] = round(float(match.group(1)), 2)
+
+            # 180 días
+            match = re.search(r"180\s*[dD][íi]as.*?(\d+\.\d+)%", texto)
+            if match:
+                tasas["6_meses"] = round(float(match.group(1)), 2)
+
+            return tasas
+
+    except Exception as e:
+        print("Error al obtener tasas de Nu:", e)
+        return {
+            "a_la_vista": "-",
+            "1_semana": "-",
+            "1_mes": "-",
+            "3_meses": "-",
+            "6_meses": "-",
+            "1_ano": "-",
+            "cajita_turbo": "-"
+        }
 
 # =========================
 # CETES - TASA PROMEDIO SUBASTA
@@ -50,9 +110,8 @@ def obtener_tasa_banxico(serie_id):
         print(f"Error Banxico {serie_id}:", e)
     return "-"
 
-
 # =========================
-# BONDDIA (SCRAPING CETESDIRECTO CON PLAYWRIGHT)
+# BONDDIA (SCRAPING CETESDIRECTO)
 # =========================
 
 def obtener_tasa_bonddia_cetesdirecto():
@@ -61,16 +120,11 @@ def obtener_tasa_bonddia_cetesdirecto():
             browser = p.chromium.launch(headless=True)
             page = browser.new_page()
             page.goto("https://www.cetesdirecto.com/sites/portal/productos.cetesdirecto", timeout=60000)
-
-            # Esperar a que cargue todo el contenido
             page.wait_for_load_state("networkidle")
 
-            # Extraer todo el texto visible
             texto = page.inner_text("body")
-
             browser.close()
 
-            # Buscar el patrón BONDDIA con regex
             match = re.search(r"BONDDIA\s+1 día:\+?(\d+\.\d+)%", texto)
             if match:
                 return round(float(match.group(1)), 2)
@@ -79,26 +133,17 @@ def obtener_tasa_bonddia_cetesdirecto():
         print("Error al obtener BONDDIA desde Cetesdirecto:", e)
     return "-"
 
-
 # =========================
 # MAIN
 # =========================
 
 def main():
-    # Crear carpeta data si no existe
     os.makedirs("data", exist_ok=True)
 
     data = {
         "last_update": datetime.now(timezone.utc).isoformat(),
         "entidades": {
-            "Nu": {
-                "a_la_vista": obtener_tasa_nu(),
-                "1_semana": "-",
-                "1_mes": "-",
-                "3_meses": "-",
-                "6_meses": "-",
-                "1_ano": "-"
-            },
+            "Nu": obtener_tasas_nu(),
             "BONDDIA": {
                 "a_la_vista": obtener_tasa_bonddia_cetesdirecto(),
                 "1_semana": "-",
@@ -122,7 +167,6 @@ def main():
         json.dump(data, f, indent=2, ensure_ascii=False)
 
     print("✅ Tasas actualizadas correctamente")
-
 
 if __name__ == "__main__":
     main()
