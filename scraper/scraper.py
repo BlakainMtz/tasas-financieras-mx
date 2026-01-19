@@ -23,6 +23,8 @@ HEADERS_BANXICO = {
 
 def obtener_tasas_nu():
     try:
+        from playwright.sync_api import sync_playwright
+
         with sync_playwright() as p:
             browser = p.chromium.launch(headless=True)
             page = browser.new_page()
@@ -39,9 +41,9 @@ def obtener_tasas_nu():
                 "cajita_turbo": "-"
             }
 
-            # Buscar todos los elementos con %
+            # Capturar todos los elementos con %
             elementos = page.query_selector_all("span, div, p")
-            for el in elementos:
+            for i, el in enumerate(elementos):
                 txt = (el.inner_text() or "").strip()
                 if "%" not in txt:
                     continue
@@ -51,21 +53,22 @@ def obtener_tasas_nu():
                 except:
                     continue
 
-                # Obtener contexto del padre
-                padre = el.evaluate("el => el.parentElement.innerText").lower()
+                # Mirar el texto del siguiente hermano
+                if i + 1 < len(elementos):
+                    siguiente = (elementos[i+1].inner_text() or "").lower()
 
-                if "turbo" in padre:
-                    tasas["cajita_turbo"] = valor
-                elif "24/7" in padre or "disponible" in padre:
-                    tasas["a_la_vista"] = valor
-                elif "7" in padre and "día" in padre:
-                    tasas["1_semana"] = valor
-                elif "28" in padre and "día" in padre:
-                    tasas["1_mes"] = valor
-                elif "90" in padre and "día" in padre:
-                    tasas["3_meses"] = valor
-                elif "180" in padre and "día" in padre:
-                    tasas["6_meses"] = valor
+                    if "turbo" in siguiente:
+                        tasas["cajita_turbo"] = valor
+                    elif "24/7" in siguiente or "disponible" in siguiente:
+                        tasas["a_la_vista"] = valor
+                    elif "7" in siguiente and "día" in siguiente:
+                        tasas["1_semana"] = valor
+                    elif "28" in siguiente and "día" in siguiente:
+                        tasas["1_mes"] = valor
+                    elif "90" in siguiente and "día" in siguiente:
+                        tasas["3_meses"] = valor
+                    elif "180" in siguiente and "día" in siguiente:
+                        tasas["6_meses"] = valor
 
             browser.close()
             return tasas
