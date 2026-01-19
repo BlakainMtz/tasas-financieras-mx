@@ -29,9 +29,6 @@ def obtener_tasas_nu():
             page.goto("https://nu.com.mx/cuenta/rendimientos/", timeout=60000)
             page.wait_for_load_state("networkidle")
 
-            texto = page.inner_text("body")
-            browser.close()
-
             tasas = {
                 "a_la_vista": "-",
                 "1_semana": "-",
@@ -42,36 +39,35 @@ def obtener_tasas_nu():
                 "cajita_turbo": "-"
             }
 
-            # Cajita Turbo
-            match = re.search(r"Cajita Turbo.*?(\d+\.\d+)%", texto)
-            if match:
-                tasas["cajita_turbo"] = round(float(match.group(1)), 2)
+            # Buscar todos los elementos con %
+            elementos = page.query_selector_all("span, div, p")
+            for el in elementos:
+                txt = (el.inner_text() or "").strip()
+                if "%" not in txt:
+                    continue
 
-            # Disponible 24/7
-            match = re.search(r"Disponible 24/7.*?(\d+\.\d+)%", texto)
-            if match:
-                tasas["a_la_vista"] = round(float(match.group(1)), 2)
+                try:
+                    valor = float(txt.replace("%", "").strip())
+                except:
+                    continue
 
-            # 7 días
-            match = re.search(r"7\s*[dD][íi]as.*?(\d+\.\d+)%", texto)
-            if match:
-                tasas["1_semana"] = round(float(match.group(1)), 2)
+                # Obtener contexto del padre
+                padre = el.evaluate("el => el.parentElement.innerText").lower()
 
-            # 28 días
-            match = re.search(r"28\s*[dD][íi]as.*?(\d+\.\d+)%", texto)
-            if match:
-                tasas["1_mes"] = round(float(match.group(1)), 2)
+                if "turbo" in padre:
+                    tasas["cajita_turbo"] = valor
+                elif "24/7" in padre or "disponible" in padre:
+                    tasas["a_la_vista"] = valor
+                elif "7" in padre and "día" in padre:
+                    tasas["1_semana"] = valor
+                elif "28" in padre and "día" in padre:
+                    tasas["1_mes"] = valor
+                elif "90" in padre and "día" in padre:
+                    tasas["3_meses"] = valor
+                elif "180" in padre and "día" in padre:
+                    tasas["6_meses"] = valor
 
-            # 90 días
-            match = re.search(r"90\s*[dD][íi]as.*?(\d+\.\d+)%", texto)
-            if match:
-                tasas["3_meses"] = round(float(match.group(1)), 2)
-
-            # 180 días
-            match = re.search(r"180\s*[dD][íi]as.*?(\d+\.\d+)%", texto)
-            if match:
-                tasas["6_meses"] = round(float(match.group(1)), 2)
-
+            browser.close()
             return tasas
 
     except Exception as e:
