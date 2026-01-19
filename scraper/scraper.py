@@ -41,34 +41,39 @@ def obtener_tasas_nu():
                 "cajita_turbo": "-"
             }
 
-            # Capturar todos los textos visibles
-            elementos = page.query_selector_all("span, div, p")
-            textos = [(el.inner_text() or "").strip() for el in elementos]
+            # Buscar todos los bloques que contienen "Tasa de Rendimiento Anual Fija"
+            bloques = page.query_selector_all("div, p, span")
+            textos = [(el.inner_text() or "").strip() for el in bloques]
 
             for i, txt in enumerate(textos):
-                if "%" not in txt:
-                    continue
-                try:
-                    valor = float(txt.replace("%", "").strip())
-                except:
+                if "Tasa de Rendimiento Anual Fija" not in txt:
                     continue
 
-                # Buscar el texto siguiente que indique el plazo
+                # El siguiente elemento debería ser el porcentaje
                 if i + 1 < len(textos):
-                    siguiente = textos[i+1].lower()
+                    porcentaje_txt = textos[i+1].strip()
+                    if "%" in porcentaje_txt:
+                        try:
+                            valor = float(porcentaje_txt.replace("%", "").strip())
+                        except:
+                            continue
 
-                    if "turbo" in siguiente:
-                        tasas["cajita_turbo"] = valor
-                    elif "24/7" in siguiente or "disponible" in siguiente:
-                        tasas["a_la_vista"] = valor
-                    elif "7" in siguiente and "día" in siguiente:
-                        tasas["1_semana"] = valor
-                    elif "28" in siguiente and "día" in siguiente:
-                        tasas["1_mes"] = valor
-                    elif "90" in siguiente and "día" in siguiente:
-                        tasas["3_meses"] = valor
-                    elif "180" in siguiente and "día" in siguiente:
-                        tasas["6_meses"] = valor
+                        # El siguiente después del porcentaje debería ser el plazo
+                        if i + 2 < len(textos):
+                            plazo_txt = textos[i+2].lower()
+
+                            if "turbo" in plazo_txt:
+                                tasas["cajita_turbo"] = valor
+                            elif "24/7" in plazo_txt or "disponible" in plazo_txt:
+                                tasas["a_la_vista"] = valor
+                            elif "7" in plazo_txt and "día" in plazo_txt:
+                                tasas["1_semana"] = valor
+                            elif "28" in plazo_txt and "día" in plazo_txt:
+                                tasas["1_mes"] = valor
+                            elif "90" in plazo_txt and "día" in plazo_txt:
+                                tasas["3_meses"] = valor
+                            elif "180" in plazo_txt and "día" in plazo_txt:
+                                tasas["6_meses"] = valor
 
             browser.close()
             return tasas
