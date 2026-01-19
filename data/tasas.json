@@ -1,7 +1,15 @@
 {
-  "last_update": "2026-01-19T15:59:07.387603Z",
+  "last_update": "2026-01-19T16:14:27.272160Z",
   "entidades": {
     "Nu": {
+      "a_la_vista": 7.0,
+      "1_semana": "-",
+      "1_mes": "-",
+      "3_meses": "-",
+      "6_meses": "-",
+      "1_ano": "-"
+    },
+    "BONDDIA": {
       "a_la_vista": 7.0,
       "1_semana": "-",
       "1_mes": "-",
@@ -13,9 +21,9 @@
       "a_la_vista": "-",
       "1_semana": "-",
       "1_mes": 6.99,
-      "3_meses": "-",
-      "6_meses": 91.0,
-      "1_ano": 7.13
+      "3_meses": 7.13,
+      "6_meses": 7.19,
+      "1_ano": 7.44
     }
   }
 }
