@@ -41,31 +41,33 @@ def obtener_tasas_nu():
                 "cajita_turbo": "-"
             }
 
-            # Capturar títulos y porcentajes
-            titulos = page.query_selector_all("p.MobileYieldBox__StyledRowTitle-sc-849ojw-1")
-            porcentajes = page.query_selector_all("span.MobileYieldBox__StyledRowPercentage-sc-849ojw-4")
+            # Buscar todos los bloques de rendimiento
+            bloques = page.query_selector_all("div.MobileYieldBox__StyledBox-sc-849ojw-0")
 
-            # Emparejar por índice
-            for i in range(min(len(titulos), len(porcentajes))):
-                titulo = titulos[i].inner_text().lower()
-                valor_txt = porcentajes[i].inner_text().strip()
+            for bloque in bloques:
+                titulo = bloque.inner_text().lower()
+                porcentaje_el = bloque.query_selector("span.MobileYieldBox__StyledRowPercentage-sc-849ojw-4")
+                if not porcentaje_el:
+                    continue
 
+                valor_txt = porcentaje_el.inner_text().strip()
                 try:
                     valor = float(valor_txt.replace("%", "").strip())
                 except:
                     continue
 
+                # Mapear según el título del bloque
                 if "turbo" in titulo:
                     tasas["cajita_turbo"] = valor
                 elif "nu" in titulo:  # Cajitas Nu (a la vista)
                     tasas["a_la_vista"] = valor
-                elif "7" in titulo and "día" in titulo:
+                elif "7 días" in titulo:
                     tasas["1_semana"] = valor
-                elif "28" in titulo and "día" in titulo:
+                elif "28 días" in titulo:
                     tasas["1_mes"] = valor
-                elif "90" in titulo and "día" in titulo:
+                elif "90 días" in titulo:
                     tasas["3_meses"] = valor
-                elif "180" in titulo and "día" in titulo:
+                elif "180 días" in titulo:
                     tasas["6_meses"] = valor
 
             browser.close()
