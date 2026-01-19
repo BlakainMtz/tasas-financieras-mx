@@ -1,5 +1,13 @@
 {
-  "last_update": "-",
-  "fuente": "GitHub Actions",
-  "entidades": {}
+  "last_update": "2026-01-19T04:27:19.901404Z",
+  "entidades": {
+    "Nu": {
+      "a_la_vista": "-",
+      "1_semana": "-",
+      "1_mes": "-",
+      "3_meses": "-",
+      "6_meses": "-",
+      "1_ano": "-"
+    }
+  }
 }
