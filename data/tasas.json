@@ -1,5 +1,5 @@
 {
-  "last_update": "2026-01-19T23:37:30.238831+00:00",
+  "last_update": "2026-01-19T23:42:46.955731+00:00",
   "entidades": {
     "Nu": {
       "cajita_turbo": 13.0,
@@ -25,7 +25,7 @@
       "1_ano": 7.44
     },
     "MercadoPago": {
-      "mercadopago": "-"
+      "rendimiento_anual_fijo": "-"
     }
   }
 }
