@@ -22,16 +22,66 @@ HEADERS_BANXICO = {
 # =========================
 
 def obtener_tasas_nu():
-    # Valores fijos de referencia
-    return {
-        "a_la_vista": 7.00,
-        "1_semana": 7.05,
-        "1_mes": 7.10,
-        "3_meses": 7.20,
-        "6_meses": 7.30,
-        "1_ano": "-",
-        "cajita_turbo": 13.00
-    }
+    try:
+        from playwright.sync_api import sync_playwright
+
+        with sync_playwright() as p:
+            browser = p.chromium.launch(headless=True)
+            page = browser.new_page()
+            page.goto("https://nu.com.mx/cuenta/rendimientos/", timeout=60000)
+            page.wait_for_load_state("networkidle")
+
+            tasas = {
+                "a_la_vista": "-",
+                "1_semana": "-",
+                "1_mes": "-",
+                "3_meses": "-",
+                "6_meses": "-",
+                "1_ano": "-",
+                "cajita_turbo": "-"
+            }
+
+            # Capturar títulos y porcentajes
+            titulos = page.query_selector_all("p.MobileYieldBox__StyledRowTitle-sc-849ojw-1")
+            porcentajes = page.query_selector_all("span.MobileYieldBox__StyledRowPercentage-sc-849ojw-4")
+
+            # Emparejar por índice
+            for i in range(min(len(titulos), len(porcentajes))):
+                titulo = titulos[i].inner_text().lower()
+                valor_txt = porcentajes[i].inner_text().strip()
+
+                try:
+                    valor = float(valor_txt.replace("%", "").strip())
+                except:
+                    continue
+
+                if "turbo" in titulo:
+                    tasas["cajita_turbo"] = valor
+                elif "nu" in titulo:  # Cajitas Nu (a la vista)
+                    tasas["a_la_vista"] = valor
+                elif "7" in titulo and "día" in titulo:
+                    tasas["1_semana"] = valor
+                elif "28" in titulo and "día" in titulo:
+                    tasas["1_mes"] = valor
+                elif "90" in titulo and "día" in titulo:
+                    tasas["3_meses"] = valor
+                elif "180" in titulo and "día" in titulo:
+                    tasas["6_meses"] = valor
+
+            browser.close()
+            return tasas
+
+    except Exception as e:
+        print("Error al obtener tasas de Nu:", e)
+        return {
+            "a_la_vista": "-",
+            "1_semana": "-",
+            "1_mes": "-",
+            "3_meses": "-",
+            "6_meses": "-",
+            "1_ano": "-",
+            "cajita_turbo": "-"
+        }
 
 # =========================
 # CETES - TASA PROMEDIO SUBASTA
