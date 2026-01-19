@@ -1,38 +1,36 @@
-name: Actualizar tasas diariamente
+name: Actualizar tasas
 
 on:
   schedule:
-    - cron: "0 9 * * *" # una vez al día (9am UTC)
-  workflow_dispatch:
-
-permissions:
-  contents: write
+    - cron: "0 9 * * *"   # todos los días a las 12:00 UTC
+  workflow_dispatch:        # permite ejecutarlo manualmente desde GitHub
 
 jobs:
-  scraper:
+  run-scraper:
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
 
-      - name: Setup Python
+      - name: Configurar Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
 
-      - name: Install dependencies
+      - name: Instalar dependencias
         run: |
-          pip install -r scraper/requirements.txt
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          playwright install --with-deps
 
-      - name: Run scraper
-        run: |
-          python scraper/scraper.py
+      - name: Ejecutar scraper
+        run: python scraper.py
 
-      - name: Commit JSON
+      - name: Commit y push de tasas.json
         run: |
-          git config user.name "github-actions"
-          git config user.email "actions@github.com"
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git add data/tasas.json
-          git commit -m "Actualiza tasas automáticamente" || echo "Sin cambios"
+          git commit -m "Actualización automática de tasas"
           git push
