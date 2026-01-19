@@ -73,13 +73,17 @@ def obtener_tasa_bonddia_cetesdirecto():
         r.raise_for_status()
         soup = BeautifulSoup(r.text, "html.parser")
 
-        # Buscar todas las celdas
         celdas = soup.find_all("td")
 
         for i, celda in enumerate(celdas):
             texto = celda.get_text(strip=True)
             if "Rendimiento diario" in texto:
-                # Avanzar hasta 10 celdas después para encontrar el número
+                print("DEBUG: Encontrado 'Rendimiento diario' en celda", i)
+                # Mostrar las siguientes 10 celdas para inspección
+                for j in range(i+1, min(i+10, len(celdas))):
+                    print("DEBUG celda", j, ":", celdas[j].get_text(strip=True))
+
+                # Buscar valor con dígitos
                 for j in range(i+1, min(i+10, len(celdas))):
                     valor = celdas[j].get_text(strip=True)
                     if valor and any(ch.isdigit() for ch in valor):
