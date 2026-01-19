@@ -32,35 +32,35 @@ def obtener_tasas_nu():
             page.wait_for_load_state("networkidle")
 
             tasas = {
-                "a_la_vista": "-",
+                "cajita_turbo": "-",
                 "1_semana": "-",
                 "1_mes": "-",
                 "3_meses": "-",
-                "6_meses": "-",
-                "1_ano": "-",
-                "cajita_turbo": "-"
+                "6_meses": "-"
             }
 
             # Buscar todos los bloques de rendimiento
             bloques = page.query_selector_all("div.MobileYieldBox__StyledBox-sc-849ojw-0")
 
             for bloque in bloques:
-                titulo = bloque.inner_text().lower()
+                # Extraer el título del plazo
+                titulo_el = bloque.query_selector("p.MobileYieldBox__StyledRowTitle-sc-849ojw-1")
                 porcentaje_el = bloque.query_selector("span.MobileYieldBox__StyledRowPercentage-sc-849ojw-4")
-                if not porcentaje_el:
+
+                if not titulo_el or not porcentaje_el:
                     continue
 
+                titulo = titulo_el.inner_text().lower()
                 valor_txt = porcentaje_el.inner_text().strip()
+
                 try:
                     valor = float(valor_txt.replace("%", "").strip())
                 except:
                     continue
 
-                # Mapear según el título del bloque
+                # Mapear según el título
                 if "turbo" in titulo:
                     tasas["cajita_turbo"] = valor
-                elif "nu" in titulo:  # Cajitas Nu (a la vista)
-                    tasas["a_la_vista"] = valor
                 elif "7 días" in titulo:
                     tasas["1_semana"] = valor
                 elif "28 días" in titulo:
@@ -76,13 +76,11 @@ def obtener_tasas_nu():
     except Exception as e:
         print("Error al obtener tasas de Nu:", e)
         return {
-            "a_la_vista": "-",
+            "cajita_turbo": "-",
             "1_semana": "-",
             "1_mes": "-",
             "3_meses": "-",
-            "6_meses": "-",
-            "1_ano": "-",
-            "cajita_turbo": "-"
+            "6_meses": "-"
         }
 
 # =========================
