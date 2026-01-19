@@ -1,26 +1,44 @@
-import os
-import re
 import json
+from datetime import datetime
 import requests
-from datetime import datetime, timezone
-from playwright.sync_api import sync_playwright
 
 # =========================
-# CONFIGURACIÓN GENERAL
+# CETES y BONDDIA vía Banxico
 # =========================
+def obtener_tasas_banxico():
+    try:
+        # API Banxico SIE
+        url = "https://www.banxico.org.mx/SieAPIRest/service/v1/series/SF60653,SF60648,SF60649,SF60650,SF60651,SF60652/datos/oportuno"
+        headers = {"Bmx-Token": "TU_TOKEN_AQUI"}  # Reemplaza con tu token de Banxico
+        resp = requests.get(url, headers=headers)
+        data = resp.json()
 
-DATA_PATH = "data/tasas.json"
-
-BANXICO_TOKEN = "2a245effb487de0215dc2b5f5282695e9caeeb68d8f734130e940c87f60c8f00"
-
-HEADERS_BANXICO = {
-    "Bmx-Token": BANXICO_TOKEN
-}
+        tasas = {
+            "BONDDIA": {
+                "a_la_vista": float(data["bmx"]["series"][0]["datos"][0]["dato"]),
+                "1_semana": "-",
+                "1_mes": "-",
+                "3_meses": "-",
+                "6_meses": "-",
+                "1_ano": "-"
+            },
+            "CETES": {
+                "a_la_vista": "-",
+                "1_semana": "-",
+                "1_mes": float(data["bmx"]["series"][1]["datos"][0]["dato"]),
+                "3_meses": float(data["bmx"]["series"][2]["datos"][0]["dato"]),
+                "6_meses": float(data["bmx"]["series"][3]["datos"][0]["dato"]),
+                "1_ano": float(data["bmx"]["series"][4]["datos"][0]["dato"])
+            }
+        }
+        return tasas
+    except Exception as e:
+        print("Error Banxico:", e)
+        return {"BONDDIA": {}, "CETES": {}}
 
 # =========================
-# NU (SCRAPING RENDIMIENTOS)
+# Nu (scraping con Playwright)
 # =========================
-
 def obtener_tasas_nu():
     try:
         from playwright.sync_api import sync_playwright
@@ -39,11 +57,9 @@ def obtener_tasas_nu():
                 "6_meses": "-"
             }
 
-            # Buscar todos los bloques de rendimiento
             bloques = page.query_selector_all("div.MobileYieldBox__StyledBox-sc-849ojw-0")
 
             for bloque in bloques:
-                # Extraer todos los títulos dentro del bloque
                 titulos = bloque.query_selector_all("p.MobileYieldBox__StyledRowTitle-sc-849ojw-1")
                 porcentaje_el = bloque.query_selector("span.MobileYieldBox__StyledRowPercentage-sc-849ojw-4")
 
@@ -56,10 +72,8 @@ def obtener_tasas_nu():
                 except:
                     continue
 
-                # Revisar cada título para identificar el plazo correcto
                 for titulo_el in titulos:
                     titulo = titulo_el.inner_text().lower()
-
                     if "turbo" in titulo:
                         tasas["cajita_turbo"] = valor
                     elif "7 días" in titulo:
@@ -75,7 +89,7 @@ def obtener_tasas_nu():
             return tasas
 
     except Exception as e:
-        print("Error al obtener tasas de Nu:", e)
+        print("Error Nu:", e)
         return {
             "cajita_turbo": "-",
             "1_semana": "-",
@@ -83,10 +97,10 @@ def obtener_tasas_nu():
             "3_meses": "-",
             "6_meses": "-"
         }
-# =========================
-# MERCADOPAGO (SCRAPING RENDIMIENTOS)
-# =========================
 
+# =========================
+# Mercado Pago (scraping con Playwright)
+# =========================
 def obtener_tasas_mercadopago():
     try:
         from playwright.sync_api import sync_playwright
@@ -98,111 +112,48 @@ def obtener_tasas_mercadopago():
             page.wait_for_load_state("networkidle")
 
             tasa = "-"
-
-            # Buscar el bloque que contiene "Tasa de Rendimiento Anual Fija"
-            bloques = page.query_selector_all("div, p, span")
-            for bloque in bloques:
-                texto = bloque.inner_text().lower()
-                if "tasa de rendimiento anual fija" in texto:
-                    # Buscar el porcentaje dentro del mismo bloque
-                    porcentaje_el = bloque.query_selector("span, p")
-                    if porcentaje_el:
-                        valor_txt = porcentaje_el.inner_text().strip()
-                        if "%" in valor_txt:
-                            try:
-                                tasa = float(valor_txt.replace("%", "").strip())
-                            except:
-                                pass
-                    break
+            spans = page.query_selector_all("span, p")
+            for el in spans:
+                texto = el.inner_text().lower()
+                if "%" in texto and "rendimiento" in texto:
+                    try:
+                        tasa = float(texto.replace("%", "").strip())
+                        break
+                    except:
+                        continue
 
             browser.close()
-            return {"mercadopago": tasa}
+            return {"rendimiento_anual_fijo": tasa}
 
     except Exception as e:
-        print("Error al obtener tasa de Mercado Pago:", e)
-        return {"mercadopago": "-"}
+        print("Error MercadoPago:", e)
+        return {"rendimiento_anual_fijo": "-"}
 
 # =========================
-# CETES - TASA PROMEDIO SUBASTA
+# Consolidación
 # =========================
-
-SERIES_CETES = {
-    "1_mes": "SF43936",   # 28 días
-    "3_meses": "SF43939", # 91 días
-    "6_meses": "SF43942", # 182 días
-    "1_ano": "SF43945"    # 364 días
-}
-
-def obtener_tasa_banxico(serie_id):
-    url = f"https://www.banxico.org.mx/SieAPIRest/service/v1/series/{serie_id}/datos/oportuno"
-    try:
-        r = requests.get(url, headers=HEADERS_BANXICO, timeout=15)
-        r.raise_for_status()
-        data = r.json()
-        dato = data["bmx"]["series"][0]["datos"][0]["dato"]
-        if dato and dato != "N/E":
-            return round(float(dato), 2)
-    except Exception as e:
-        print(f"Error Banxico {serie_id}:", e)
-    return "-"
-
-# =========================
-# BONDDIA (SCRAPING CETESDIRECTO)
-# =========================
-
-def obtener_tasa_bonddia_cetesdirecto():
-    try:
-        with sync_playwright() as p:
-            browser = p.chromium.launch(headless=True)
-            page = browser.new_page()
-            page.goto("https://www.cetesdirecto.com/sites/portal/productos.cetesdirecto", timeout=60000)
-            page.wait_for_load_state("networkidle")
-
-            texto = page.inner_text("body")
-            browser.close()
-
-            match = re.search(r"BONDDIA\s+1 día:\+?(\d+\.\d+)%", texto)
-            if match:
-                return round(float(match.group(1)), 2)
-
-    except Exception as e:
-        print("Error al obtener BONDDIA desde Cetesdirecto:", e)
-    return "-"
-
-# =========================
-# MAIN
-# =========================
-
 def main():
-    os.makedirs("data", exist_ok=True)
+    datos = {"entidades": {}}
 
-    data = {
-        "last_update": datetime.now(timezone.utc).isoformat(),
-        "entidades": {
-            "Nu": obtener_tasas_nu(),
-            "BONDDIA": {
-                "a_la_vista": obtener_tasa_bonddia_cetesdirecto(),
-                "1_semana": "-",
-                "1_mes": "-",
-                "3_meses": "-",
-                "6_meses": "-",
-                "1_ano": "-"
-            },
-            "CETES": {
-                "a_la_vista": "-",
-                "1_semana": "-",
-                "1_mes": obtener_tasa_banxico(SERIES_CETES["1_mes"]),
-                "3_meses": obtener_tasa_banxico(SERIES_CETES["3_meses"]),
-                "6_meses": obtener_tasa_banxico(SERIES_CETES["6_meses"]),
-                "1_ano": obtener_tasa_banxico(SERIES_CETES["1_ano"])
-            }
-        }
-    }
+    # Nu
+    datos["entidades"]["Nu"] = obtener_tasas_nu()
 
-    with open(DATA_PATH, "w", encoding="utf-8") as f:
-        json.dump(data, f, indent=2, ensure_ascii=False)
+    # Banxico (BONDDIA y CETES)
+    banxico = obtener_tasas_banxico()
+    datos["entidades"]["BONDDIA"] = banxico.get("BONDDIA", {})
+    datos["entidades"]["CETES"] = banxico.get("CETES", {})
 
-    print("✅ Tasas actualizadas correctamente")
+    # Mercado Pago
+    datos["entidades"]["MercadoPago"] = obtener_tasas_mercadopago()
+
+    # Timestamp
+    datos["last_update"] = datetime.utcnow().isoformat()
+
+    # Guardar JSON
+    with open("data/tasas.json", "w", encoding="utf-8") as f:
+        json.dump(datos, f, ensure_ascii=False, indent=2)
+
+    print(json.dumps(datos, ensure_ascii=False, indent=2))
 
 if __name__ == "__main__":
     main()
