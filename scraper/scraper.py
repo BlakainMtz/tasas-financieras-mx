@@ -9,7 +9,7 @@ from datetime import datetime
 DATA_PATH = "data/tasas.json"
 
 # Token oficial de Banxico
-BANXICO_TOKEN = "e3980208bf01ec653aba9aee3c2d6f70f6ae8b066d2545e379b9e0ef92e9de25"
+BANXICO_TOKEN = "2a245effb487de0215dc2b5f5282695e9caeeb68d8f734130e940c87f60c8f00"
 
 
 # =========================
