@@ -1,7 +1,10 @@
-import requests
+import os
+import re
 import json
-from datetime import datetime
+import requests
+from datetime import datetime, timezone
 from bs4 import BeautifulSoup
+from playwright.sync_api import sync_playwright
 
 # =========================
 # CONFIGURACIÓN GENERAL
@@ -44,41 +47,37 @@ def obtener_tasa_banxico(serie_id):
         if dato and dato != "N/E":
             return round(float(dato), 2)
     except Exception as e:
-        return f"Error Banxico {serie_id}: {e}"
+        print(f"Error Banxico {serie_id}:", e)
     return "-"
 
 
 # =========================
-# BONDDIA (SCRAPING CETESDIRECTO CON DEBUG EN JSON)
+# BONDDIA (SCRAPING CETESDIRECTO CON PLAYWRIGHT)
 # =========================
 
 def obtener_tasa_bonddia_cetesdirecto():
-    url = "https://www.cetesdirecto.com/sites/portal/productos.cetesdirecto"
     try:
-        r = requests.get(url, timeout=15)
-        r.raise_for_status()
-        soup = BeautifulSoup(r.text, "html.parser")
+        with sync_playwright() as p:
+            browser = p.chromium.launch(headless=True)
+            page = browser.new_page()
+            page.goto("https://www.cetesdirecto.com/sites/portal/productos.cetesdirecto", timeout=60000)
 
-        celdas = soup.find_all("td")
+            # Esperar a que cargue todo el contenido
+            page.wait_for_load_state("networkidle")
 
-        for i, celda in enumerate(celdas):
-            texto = celda.get_text(strip=True)
-            if "Rendimiento diario" in texto:
-                # Guardar las siguientes 10 celdas para depuración
-                cercanas = [c.get_text(strip=True) for c in celdas[i+1:i+11]]
+            # Extraer todo el texto visible
+            texto = page.inner_text("body")
 
-                # Buscar valor con dígitos
-                for valor in cercanas:
-                    if valor and any(ch.isdigit() for ch in valor):
-                        tasa = valor.replace("*", "").replace(",", ".")
-                        return round(float(tasa), 2), cercanas
+            browser.close()
 
-                return "-", cercanas
+            # Buscar el patrón BONDDIA con regex
+            match = re.search(r"BONDDIA\s+1 día:\+?(\d+\.\d+)%", texto)
+            if match:
+                return round(float(match.group(1)), 2)
 
     except Exception as e:
-        return f"Error BONDDIA: {e}", []
-
-    return "-", []
+        print("Error al obtener BONDDIA desde Cetesdirecto:", e)
+    return "-"
 
 
 # =========================
@@ -86,10 +85,11 @@ def obtener_tasa_bonddia_cetesdirecto():
 # =========================
 
 def main():
-    bonddia_valor, bonddia_debug = obtener_tasa_bonddia_cetesdirecto()
+    # Crear carpeta data si no existe
+    os.makedirs("data", exist_ok=True)
 
     data = {
-        "last_update": datetime.utcnow().isoformat() + "Z",
+        "last_update": datetime.now(timezone.utc).isoformat(),
         "entidades": {
             "Nu": {
                 "a_la_vista": obtener_tasa_nu(),
@@ -100,13 +100,12 @@ def main():
                 "1_ano": "-"
             },
             "BONDDIA": {
-                "a_la_vista": bonddia_valor,
+                "a_la_vista": obtener_tasa_bonddia_cetesdirecto(),
                 "1_semana": "-",
                 "1_mes": "-",
                 "3_meses": "-",
                 "6_meses": "-",
-                "1_ano": "-",
-                "debug_celdas": bonddia_debug  # 👈 aquí verás las celdas cercanas
+                "1_ano": "-"
             },
             "CETES": {
                 "a_la_vista": "-",
