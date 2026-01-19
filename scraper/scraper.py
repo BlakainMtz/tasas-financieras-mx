@@ -22,66 +22,16 @@ HEADERS_BANXICO = {
 # =========================
 
 def obtener_tasas_nu():
-    try:
-        from playwright.sync_api import sync_playwright
-
-        with sync_playwright() as p:
-            browser = p.chromium.launch(headless=True)
-            page = browser.new_page()
-            page.goto("https://nu.com.mx/cuenta/rendimientos/", timeout=60000)
-            page.wait_for_load_state("networkidle")
-
-            tasas = {
-                "a_la_vista": "-",
-                "1_semana": "-",
-                "1_mes": "-",
-                "3_meses": "-",
-                "6_meses": "-",
-                "1_ano": "-",
-                "cajita_turbo": "-"
-            }
-
-            # Seleccionar todos los spans que contienen el porcentaje
-            porcentajes = page.query_selector_all("span.MobileYieldBox__StyledRowPercentage-sc-849ojw-4")
-            for el in porcentajes:
-                valor_txt = el.inner_text().strip()
-                if "%" not in valor_txt:
-                    continue
-                try:
-                    valor = float(valor_txt.replace("%", "").strip())
-                except:
-                    continue
-
-                # Buscar el bloque completo (padre) para identificar el plazo
-                bloque = el.evaluate("el => el.parentElement.innerText").lower()
-
-                if "turbo" in bloque:
-                    tasas["cajita_turbo"] = valor
-                elif "24/7" in bloque or "disponible" in bloque:
-                    tasas["a_la_vista"] = valor
-                elif "7" in bloque and "día" in bloque:
-                    tasas["1_semana"] = valor
-                elif "28" in bloque and "día" in bloque:
-                    tasas["1_mes"] = valor
-                elif "90" in bloque and "día" in bloque:
-                    tasas["3_meses"] = valor
-                elif "180" in bloque and "día" in bloque:
-                    tasas["6_meses"] = valor
-
-            browser.close()
-            return tasas
-
-    except Exception as e:
-        print("Error al obtener tasas de Nu:", e)
-        return {
-            "a_la_vista": "-",
-            "1_semana": "-",
-            "1_mes": "-",
-            "3_meses": "-",
-            "6_meses": "-",
-            "1_ano": "-",
-            "cajita_turbo": "-"
-        }
+    # Valores fijos de referencia
+    return {
+        "a_la_vista": 7.00,
+        "1_semana": 7.05,
+        "1_mes": 7.10,
+        "3_meses": 7.20,
+        "6_meses": 7.30,
+        "1_ano": "-",
+        "cajita_turbo": 13.00
+    }
 
 # =========================
 # CETES - TASA PROMEDIO SUBASTA
