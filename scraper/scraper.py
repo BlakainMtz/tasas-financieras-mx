@@ -38,10 +38,10 @@ SERIES_CETES = {
 }
 
 
-def obtener_cetes_promedio(serie_id):
+def obtener_tasa_banxico(serie_id):
     """
-    Obtiene la tasa promedio ponderada de la subasta
-    directamente desde Banxico (SIE).
+    Obtiene una tasa desde Banxico (SIE)
+    usando la serie especificada.
     """
     url = f"https://www.banxico.org.mx/SieAPIRest/service/v1/series/{serie_id}/datos/oportuno"
 
@@ -56,9 +56,18 @@ def obtener_cetes_promedio(serie_id):
             return round(float(dato), 2)
 
     except Exception as e:
-        print(f"Error CETES {serie_id}:", e)
+        print(f"Error Banxico {serie_id}:", e)
 
     return "-"
+
+
+# =========================
+# BONDDIA (A LA VISTA)
+# =========================
+
+# Tasa de rendimiento de BONDDIA (Banxico)
+# Serie oficial: Rendimiento diario Bondía
+SERIE_BONDDIA = "SF61745"
 
 
 # =========================
@@ -77,13 +86,21 @@ def main():
                 "6_meses": "-",
                 "1_ano": "-"
             },
+            "BONDDIA": {
+                "a_la_vista": obtener_tasa_banxico(SERIE_BONDDIA),
+                "1_semana": "-",
+                "1_mes": "-",
+                "3_meses": "-",
+                "6_meses": "-",
+                "1_ano": "-"
+            },
             "CETES": {
                 "a_la_vista": "-",
                 "1_semana": "-",
-                "1_mes": obtener_cetes_promedio(SERIES_CETES["1_mes"]),
-                "3_meses": obtener_cetes_promedio(SERIES_CETES["3_meses"]),
-                "6_meses": obtener_cetes_promedio(SERIES_CETES["6_meses"]),
-                "1_ano": obtener_cetes_promedio(SERIES_CETES["1_ano"])
+                "1_mes": obtener_tasa_banxico(SERIES_CETES["1_mes"]),
+                "3_meses": obtener_tasa_banxico(SERIES_CETES["3_meses"]),
+                "6_meses": obtener_tasa_banxico(SERIES_CETES["6_meses"]),
+                "1_ano": obtener_tasa_banxico(SERIES_CETES["1_ano"])
             }
         }
     }
