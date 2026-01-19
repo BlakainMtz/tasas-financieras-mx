@@ -27,6 +27,7 @@ def obtener_tasa_nu():
 
     return "-"
 
+tasas["entidades"]["Nu"]["a_la_vista"] = obtener_tasa_nu()
 
 URL_NU = "https://nu.com.mx/cuenta/rendimientos/"
 DATA_PATH = "data/tasas.json"
