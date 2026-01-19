@@ -83,6 +83,44 @@ def obtener_tasas_nu():
             "3_meses": "-",
             "6_meses": "-"
         }
+# =========================
+# MERCADOPAGO (SCRAPING RENDIMIENTOS)
+# =========================
+
+def obtener_tasas_mercadopago():
+    try:
+        from playwright.sync_api import sync_playwright
+
+        with sync_playwright() as p:
+            browser = p.chromium.launch(headless=True)
+            page = browser.new_page()
+            page.goto("https://www.mercadopago.com.mx/cuenta", timeout=60000)
+            page.wait_for_load_state("networkidle")
+
+            tasa = "-"
+
+            # Buscar el bloque que contiene "Tasa de Rendimiento Anual Fija"
+            bloques = page.query_selector_all("div, p, span")
+            for bloque in bloques:
+                texto = bloque.inner_text().lower()
+                if "tasa de rendimiento anual fija" in texto:
+                    # Buscar el porcentaje dentro del mismo bloque
+                    porcentaje_el = bloque.query_selector("span, p")
+                    if porcentaje_el:
+                        valor_txt = porcentaje_el.inner_text().strip()
+                        if "%" in valor_txt:
+                            try:
+                                tasa = float(valor_txt.replace("%", "").strip())
+                            except:
+                                pass
+                    break
+
+            browser.close()
+            return {"mercadopago": tasa}
+
+    except Exception as e:
+        print("Error al obtener tasa de Mercado Pago:", e)
+        return {"mercadopago": "-"}
 
 # =========================
 # CETES - TASA PROMEDIO SUBASTA
