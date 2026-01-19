@@ -29,9 +29,6 @@ def obtener_tasas_nu():
             page.goto("https://nu.com.mx/cuenta/rendimientos/", timeout=60000)
             page.wait_for_load_state("networkidle")
 
-            texto = page.inner_text("body")
-            browser.close()
-
             tasas = {
                 "a_la_vista": "-",
                 "1_semana": "-",
@@ -41,6 +38,39 @@ def obtener_tasas_nu():
                 "1_ano": "-",
                 "cajita_turbo": "-"
             }
+
+            # Ejemplo: buscar todos los elementos que contienen el símbolo %
+            elementos = page.query_selector_all("span, p, div")
+            for el in elementos:
+                texto = el.inner_text().strip()
+                if "%" in texto:
+                    if "Disponible" in texto or "24/7" in texto:
+                        tasas["a_la_vista"] = float(texto.replace("%",""))
+                    elif "7" in texto:
+                        tasas["1_semana"] = float(texto.replace("%",""))
+                    elif "28" in texto:
+                        tasas["1_mes"] = float(texto.replace("%",""))
+                    elif "90" in texto:
+                        tasas["3_meses"] = float(texto.replace("%",""))
+                    elif "180" in texto:
+                        tasas["6_meses"] = float(texto.replace("%",""))
+                    elif "Turbo" in texto:
+                        tasas["cajita_turbo"] = float(texto.replace("%",""))
+
+            browser.close()
+            return tasas
+
+    except Exception as e:
+        print("Error al obtener tasas de Nu:", e)
+        return {
+            "a_la_vista": "-",
+            "1_semana": "-",
+            "1_mes": "-",
+            "3_meses": "-",
+            "6_meses": "-",
+            "1_ano": "-",
+            "cajita_turbo": "-"
+        }
 
             # Cajita Turbo
             match = re.search(r"Cajita Turbo.*?(\d+\.\d+)%", texto)
