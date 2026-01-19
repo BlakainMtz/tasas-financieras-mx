@@ -32,9 +32,9 @@ def obtener_tasa_nu():
 
 SERIES_CETES = {
     "1_mes": "SF43936",   # 28 días
-    "3_meses": "SF43937", # 91 días
-    "6_meses": "SF43938", # 182 días
-    "1_ano": "SF43939"    # 364 días
+    "3_meses": "SF43939", # 91 días
+    "6_meses": "SF43942", # 182 días
+    "1_ano": "SF43945"    # 364 días
 }
 
 
