@@ -1,6 +1,7 @@
 import requests
 import json
 from datetime import datetime
+from bs4 import BeautifulSoup
 
 # =========================
 # CONFIGURACIÓN GENERAL
@@ -62,12 +63,35 @@ def obtener_tasa_banxico(serie_id):
 
 
 # =========================
-# BONDDIA (A LA VISTA)
+# BONDDIA (SCRAPING CETESDIRECTO)
 # =========================
 
-# Tasa de rendimiento de BONDDIA (Banxico)
-# Serie oficial: Rendimiento diario Bondía
-SERIE_BONDDIA = "SF61745"
+def obtener_tasa_bonddia_cetesdirecto():
+    """
+    Obtiene el rendimiento diario de BONDDIA
+    directamente desde la página de Cetesdirecto.
+    """
+    url = "https://www.cetesdirecto.com/sites/portal/productos.cetesdirecto"
+    try:
+        r = requests.get(url, timeout=15)
+        r.raise_for_status()
+        soup = BeautifulSoup(r.text, "html.parser")
+
+        # Buscar todas las celdas de la tabla
+        celdas = soup.find_all("td")
+
+        for i, celda in enumerate(celdas):
+            texto = celda.get_text(strip=True)
+            if "Rendimiento diario" in texto:
+                # La siguiente celda contiene el valor (ej. "6.93*")
+                siguiente = celdas[i + 1].get_text(strip=True)
+                tasa = siguiente.replace("*", "").replace(",", ".")
+                return round(float(tasa), 2)
+
+    except Exception as e:
+        print("Error al obtener BONDDIA desde Cetesdirecto:", e)
+
+    return "-"
 
 
 # =========================
@@ -87,7 +111,7 @@ def main():
                 "1_ano": "-"
             },
             "BONDDIA": {
-                "a_la_vista": obtener_tasa_banxico(SERIE_BONDDIA),
+                "a_la_vista": obtener_tasa_bonddia_cetesdirecto(),
                 "1_semana": "-",
                 "1_mes": "-",
                 "3_meses": "-",
