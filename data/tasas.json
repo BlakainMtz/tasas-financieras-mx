@@ -1,7 +1,15 @@
 {
-  "last_update": "2026-01-19T09:39:13.897482Z",
+  "last_update": "2026-01-19T15:36:30.297566Z",
   "entidades": {
     "Nu": {
+      "a_la_vista": 7.0,
+      "1_semana": "-",
+      "1_mes": "-",
+      "3_meses": "-",
+      "6_meses": "-",
+      "1_ano": "-"
+    },
+    "CETES": {
       "a_la_vista": "-",
       "1_semana": "-",
       "1_mes": "-",
