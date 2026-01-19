@@ -1,14 +1,14 @@
 {
-  "last_update": "2026-01-19T21:36:40.263002+00:00",
+  "last_update": "2026-01-19T21:39:40.981944+00:00",
   "entidades": {
     "Nu": {
-      "a_la_vista": "-",
-      "1_semana": "-",
+      "a_la_vista": 7.0,
+      "1_semana": 7.2,
       "1_mes": "-",
       "3_meses": "-",
       "6_meses": "-",
       "1_ano": "-",
-      "cajita_turbo": "-"
+      "cajita_turbo": 7.3
     },
     "BONDDIA": {
       "a_la_vista": 6.93,
