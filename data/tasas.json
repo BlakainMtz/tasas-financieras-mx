@@ -1,5 +1,5 @@
 {
-  "last_update": "2026-01-19T16:14:27.272160Z",
+  "last_update": "2026-01-19T17:36:36.393866Z",
   "entidades": {
     "Nu": {
       "a_la_vista": 7.0,
@@ -10,7 +10,7 @@
       "1_ano": "-"
     },
     "BONDDIA": {
-      "a_la_vista": 7.0,
+      "a_la_vista": "-",
       "1_semana": "-",
       "1_mes": "-",
       "3_meses": "-",
