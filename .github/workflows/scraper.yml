@@ -43,12 +43,11 @@ jobs:
           git push https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }} HEAD:main
 
       - name: Subir tasas.json a Hostinger via SFTP
-        uses: SamKirkland/FTP-Deploy-Action@v4.3.4
+        uses: appleboy/scp-action@v0.1.7
         with:
-          server: ${{ secrets.FTP_SERVER }}      # 82.180.175.243
-          username: ${{ secrets.FTP_USERNAME }}  # u703141570
-          password: ${{ secrets.FTP_PASSWORD }}  # tu contraseña SSH
-          port: ${{ secrets.FTP_PORT }}          # 65002
-          protocol: sftp
-          local-dir: data/
-          server-dir: public_html/data/
+          host: ${{ secrets.SSH_HOST }}
+          port: ${{ secrets.SSH_PORT }}
+          username: ${{ secrets.SSH_USERNAME }}
+          password: ${{ secrets.SSH_PASSWORD }}
+          source: "data/tasas.json"
+          target: "public_html/data/"
