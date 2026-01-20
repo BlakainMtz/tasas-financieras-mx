@@ -89,7 +89,7 @@ def obtener_tasas_nu():
 
 def obtener_tasas_mercadopago():
     """
-    Extrae la tasa de Mercado Pago buscando cualquier número seguido de '%'
+    Extrae la tasa de Mercado Pago buscando cualquier número seguido de '%' o '\u0025'
     en el HTML embebido. Esto evita depender de un selector específico.
     """
     try:
@@ -105,8 +105,8 @@ def obtener_tasas_mercadopago():
             html = page.content()
             browser.close()
 
-            # Buscar cualquier número con %
-            match = re.search(r"(\d+(?:[.,]\d+)?)\s*%.*?anual", html, re.IGNORECASE)
+            # Buscar número seguido de % o \u0025
+            match = re.search(r"(\d+(?:[.,]\d+)?)(?:\s*%|\s*\\u0025).*?anual", html, re.IGNORECASE)
             if match:
                 tasa = float(match.group(1).replace(",", "."))
             else:
