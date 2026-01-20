@@ -1,28 +1,15 @@
 {
-  "last_update": "2026-01-20T01:37:45.856581+00:00",
-  "entidades": {
-    "Nu": {
-      "cajita_turbo": 13.0,
-      "1_semana": 7.05,
-      "1_mes": 7.1,
-      "3_meses": 7.2,
-      "6_meses": 7.3
-    },
-    "BONDDIA": {
-      "a_la_vista": 6.77,
-      "1_semana": "-",
-      "1_mes": "-",
-      "3_meses": "-",
-      "6_meses": "-",
-      "1_ano": "-"
-    },
-    "CETES": {
-      "a_la_vista": "-",
-      "1_semana": "-",
-      "1_mes": 6.99,
-      "3_meses": 7.13,
-      "6_meses": 7.19,
-      "1_ano": 7.44
-    }
+  "Nu": {
+    "cajita_turbo": 13.0,
+    "1_semana": 7.05,
+    "1_mes": 7.1,
+    "3_meses": 7.2,
+    "6_meses": 7.3
+  },
+  "CETES": {
+    "1_mes": 6.99,
+    "3_meses": "-",
+    "6_meses": 91.0,
+    "1_ano": 7.13
   }
 }
