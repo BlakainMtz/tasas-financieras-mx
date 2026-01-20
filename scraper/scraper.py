@@ -23,6 +23,8 @@ HEADERS_BANXICO = {
 
 def obtener_tasas_nu():
     try:
+        from playwright.sync_api import sync_playwright
+
         with sync_playwright() as p:
             browser = p.chromium.launch(headless=True)
             page = browser.new_page()
@@ -37,9 +39,11 @@ def obtener_tasas_nu():
                 "6_meses": "-"
             }
 
+            # Buscar todos los bloques de rendimiento
             bloques = page.query_selector_all("div.MobileYieldBox__StyledBox-sc-849ojw-0")
 
             for bloque in bloques:
+                # Extraer todos los títulos dentro del bloque
                 titulos = bloque.query_selector_all("p.MobileYieldBox__StyledRowTitle-sc-849ojw-1")
                 porcentaje_el = bloque.query_selector("span.MobileYieldBox__StyledRowPercentage-sc-849ojw-4")
 
@@ -52,6 +56,7 @@ def obtener_tasas_nu():
                 except:
                     continue
 
+                # Revisar cada título para identificar el plazo correcto
                 for titulo_el in titulos:
                     titulo = titulo_el.inner_text().lower()
 
@@ -80,14 +85,14 @@ def obtener_tasas_nu():
         }
 
 # =========================
-# CETES - TASA PROMEDIO SUBASTA (Banxico)
+# CETES - TASA PROMEDIO SUBASTA
 # =========================
 
 SERIES_CETES = {
     "1_mes": "SF43936",   # 28 días
-    "3_meses": "SF43937", # 91 días
-    "6_meses": "SF43938", # 182 días
-    "1_ano": "SF43939"    # 364 días
+    "3_meses": "SF43939", # 91 días
+    "6_meses": "SF43942", # 182 días
+    "1_ano": "SF43945"    # 364 días
 }
 
 def obtener_tasa_banxico(serie_id):
@@ -134,27 +139,27 @@ def main():
     os.makedirs("data", exist_ok=True)
 
     data = {
-        "last_update": datetime.now(timezone.utc).isoformat(),
-        "entidades": {
-            "Nu": obtener_tasas_nu(),
-            "BONDDIA": {
-                "a_la_vista": obtener_tasa_bonddia_cetesdirecto(),
-                "1_semana": "-",
-                "1_mes": "-",
-                "3_meses": "-",
-                "6_meses": "-",
-                "1_ano": "-"
-            },
-            "CETES": {
-                "a_la_vista": "-",
-                "1_semana": "-",
-                "1_mes": obtener_tasa_banxico(SERIES_CETES["1_mes"]),
-                "3_meses": obtener_tasa_banxico(SERIES_CETES["3_meses"]),
-                "6_meses": obtener_tasa_banxico(SERIES_CETES["6_meses"]),
-                "1_ano": obtener_tasa_banxico(SERIES_CETES["1_ano"])
-            }
-        }
+    "last_update": datetime.now(timezone.utc).isoformat(),
+    "entidades": {
+        "Nu": obtener_tasas_nu(),
+        "BONDDIA": {
+            "a_la_vista": obtener_tasa_bonddia_cetesdirecto(),
+            "1_semana": "-",
+            "1_mes": "-",
+            "3_meses": "-",
+            "6_meses": "-",
+            "1_ano": "-"
+        },
+        "CETES": {
+            "a_la_vista": "-",
+            "1_semana": "-",
+            "1_mes": obtener_tasa_banxico(SERIES_CETES["1_mes"]),
+            "3_meses": obtener_tasa_banxico(SERIES_CETES["3_meses"]),
+            "6_meses": obtener_tasa_banxico(SERIES_CETES["6_meses"]),
+            "1_ano": obtener_tasa_banxico(SERIES_CETES["1_ano"])
+        },
     }
+}
 
     with open(DATA_PATH, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2, ensure_ascii=False)
