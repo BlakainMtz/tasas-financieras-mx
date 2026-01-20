@@ -89,8 +89,8 @@ def obtener_tasas_nu():
 
 def obtener_tasas_mercadopago():
     """
-    Extrae la tasa de Mercado Pago desde el JSON embebido en la página,
-    buscando el campo "subTitle":"Ganancias de hasta XX% anual".
+    Extrae la tasa de Mercado Pago buscando cualquier número seguido de '%'
+    en el HTML embebido. Esto evita depender de un selector específico.
     """
     try:
         import re
@@ -105,10 +105,10 @@ def obtener_tasas_mercadopago():
             html = page.content()
             browser.close()
 
-            # Buscar el número dentro del subTitle
-            m = re.search(r'"subTitle"\s*:\s*"[^"]*?(\d+(?:[.,]\d+)?)\s*%[^"]*"', html)
-            if m:
-                tasa = float(m.group(1).replace(",", "."))
+            # Buscar cualquier número con %
+            match = re.search(r"(\d+(?:[.,]\d+)?)\s*%.*?anual", html, re.IGNORECASE)
+            if match:
+                tasa = float(match.group(1).replace(",", "."))
             else:
                 tasa = "-"
 
