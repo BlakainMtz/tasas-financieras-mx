@@ -14,11 +14,9 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # 1. Descargar el repositorio
+      # 1. Descargar el repo
       - name: Checkout repo
         uses: actions/checkout@v4
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
 
       # 2. Configurar Python
       - name: Configurar Python
@@ -31,13 +29,12 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r scraper/requirements.txt
-          playwright install --with-deps
 
       # 4. Ejecutar scraper
       - name: Ejecutar scraper
         run: python scraper/scraper.py
 
-      # 5. Commit y push del JSON generado
+      # 5. Commit y push del JSON
       - name: Commit y push de tasas.json
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -48,19 +45,14 @@ jobs:
           git diff --cached --quiet || git commit -m "Actualización automática de tasas"
           git push https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }} HEAD:main
 
-      # 6. Crear archivo de prueba (verificación SFTP)
-      - name: Crear archivo de prueba SFTP
-        run: |
-          echo "SFTP OK - $(date -u)" > data/TEST_SFTP.txt
-
-      # 7. Subir archivos a Hostinger via SFTP
-      - name: Subir tasas.json a Hostinger via SFTP
+      # 6. Subir tasas.json a Hostinger (FTP)
+      - name: Subir tasas.json a Hostinger
         uses: SamKirkland/FTP-Deploy-Action@v4.3.4
         with:
           server: ${{ secrets.FTP_SERVER }}
           username: ${{ secrets.FTP_USERNAME }}
           password: ${{ secrets.FTP_PASSWORD }}
-          port: 22
-          protocol: sftp
+          port: 21
+          protocol: ftp
           local-dir: data/
-          server-dir: public_html/
+          server-dir: /domains/misfinanzasdigitales.com/public_html/
