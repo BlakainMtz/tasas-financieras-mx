@@ -1,54 +1,137 @@
-name: Actualizar tasas
+import os
+import re
+import json
+import requests
+from datetime import datetime, timezone
+from playwright.sync_api import sync_playwright
 
-on:
-  schedule:
-    - cron: "0 15 * * *"   # todos los días a las 15:00 UTC (9:00 AM hora de México)
-  workflow_dispatch:
+# =========================
+# CONFIGURACIÓN GENERAL
+# =========================
 
-permissions:
-  contents: write
+DATA_PATH = "data/tasas.json"
 
-jobs:
-  run-scraper:
-    runs-on: ubuntu-latest
+BANXICO_TOKEN = "2a245effb487de0215dc2b5f5282695e9caeeb68d8f734130e940c87f60c8f00"
 
-    steps:
-      - name: Checkout repo
-        uses: actions/checkout@v4
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+HEADERS_BANXICO = {
+    "Bmx-Token": BANXICO_TOKEN
+}
 
-      - name: Configurar Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
+# =========================
+# NU (SCRAPING RENDIMIENTOS)
+# =========================
 
-      - name: Instalar dependencias
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r scraper/requirements.txt
-          playwright install --with-deps
+def obtener_tasas_nu():
+    try:
+        from playwright.sync_api import sync_playwright
 
-      - name: Ejecutar scraper
-        run: python scraper/scraper.py
+        with sync_playwright() as p:
+            browser = p.chromium.launch(headless=True)
+            page = browser.new_page()
+            page.goto("https://nu.com.mx/cuenta/rendimientos/", timeout=60000)
+            page.wait_for_load_state("networkidle")
 
-      - name: Commit y push de tasas.json
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git add data/tasas.json
-          git diff --cached --quiet || git commit -m "Actualización automática de tasas"
-          git push https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }} HEAD:main
+            tasas = {
+                "cajita_turbo": "-",
+                "1_semana": "-",
+                "1_mes": "-",
+                "3_meses": "-",
+                "6_meses": "-"
+            }
 
-      - name: Subir tasas.json a Hostinger via FTP
-        uses: SamKirkland/FTP-Deploy-Action@v4.3.4
-        with:
-          server: ${{ secrets.FTP_SERVER }}
-          username: ${{ secrets.FTP_USERNAME }}
-          password: ${{ secrets.FTP_PASSWORD }}
-          port: ${{ secrets.FTP_PORT }}
-          protocol: ftp
-          local-dir: data/
-          server-dir: ./
+            # Buscar todos los bloques de rendimiento
+            bloques = page.query_selector_all("div.MobileYieldBox__StyledBox-sc-849ojw-0")
+
+            for bloque in bloques:
+                # Extraer todos los títulos dentro del bloque
+                titulos = bloque.query_selector_all("p.MobileYieldBox__StyledRowTitle-sc-849ojw-1")
+                porcentaje_el = bloque.query_selector("span.MobileYieldBox__StyledRowPercentage-sc-849ojw-4")
+
+                if not titulos or not porcentaje_el:
+                    continue
+
+                valor_txt = porcentaje_el.inner_text().strip()
+                try:
+                    valor = float(valor_txt.replace("%", "").strip())
+                except:
+                    continue
+
+                # Revisar cada título para identificar el plazo correcto
+                for titulo_el in titulos:
+                    titulo = titulo_el.inner_text().lower()
+
+                    if "turbo" in titulo:
+                        tasas["cajita_turbo"] = valor
+                    elif "7 días" in titulo:
+                        tasas["1_semana"] = valor
+                    elif "28 días" in titulo:
+                        tasas["1_mes"] = valor
+                    elif "90 días" in titulo:
+                        tasas["3_meses"] = valor
+                    elif "180 días" in titulo:
+                        tasas["6_meses"] = valor
+
+            browser.close()
+            return tasas
+
+    except Exception as e:
+        print("Error al obtener tasas de Nu:", e)
+        return {
+            "cajita_turbo": "-",
+            "1_semana": "-",
+            "1_mes": "-",
+            "3_meses": "-",
+            "6_meses": "-"
+        }
+# =========================
+# MERCADOPAGO (SCRAPING RENDIMIENTOS)
+# =========================
+
+def obtener_tasas_mercadopago():
+    """
+    Extrae la tasa de Mercado Pago buscando cualquier número seguido de '%' o '\u0025'
+    en el HTML embebido. Esto evita depender de un selector específico.
+    """
+    try:
+        import re
+        from playwright.sync_api import sync_playwright
+
+        with sync_playwright() as p:
+            browser = p.chromium.launch(headless=True)
+            page = browser.new_page()
+            page.goto("https://www.mercadopago.com.mx/cuenta", timeout=60000)
+            page.wait_for_load_state("networkidle")
+
+            html = page.content()
+            browser.close()
+
+            # Buscar número seguido de % o \u0025
+            match = re.search(r"(\d+(?:[.,]\d+)?)(?:\s*%|\s*\\u0025).*?anual", html, re.IGNORECASE)
+            if match:
+                tasa = float(match.group(1).replace(",", "."))
+            else:
+                tasa = "-"
+
+            return {"rendimiento_anual_fijo": tasa}
+
+    except Exception as e:
+        print("Error al obtener tasa de Mercado Pago:", e)
+        return {"rendimiento_anual_fijo": "-"}
+
+# =========================
+# CETES - TASA PROMEDIO SUBASTA
+@@ -192,14 +158,13 @@
+            "6_meses": obtener_tasa_banxico(SERIES_CETES["6_meses"]),
+            "1_ano": obtener_tasa_banxico(SERIES_CETES["1_ano"])
+        },
+        "MercadoPago": obtener_tasas_mercadopago()
+    }
+}
+
+    with open(DATA_PATH, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2, ensure_ascii=False)
+
+    print("✅ Tasas actualizadas correctamente")
+
+if __name__ == "__main__":
+    main()
