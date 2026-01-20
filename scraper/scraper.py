@@ -88,7 +88,13 @@ def obtener_tasas_nu():
 # =========================
 
 def obtener_tasas_mercadopago():
+    """
+    Scrapea la página de Mercado Pago para obtener la tasa de rendimiento anual fija.
+    Intenta primero leer el h3 visible con el texto 'Ganancias de hasta XX% anual'.
+    Si no lo encuentra, busca en el JSON embebido dentro del HTML.
+    """
     try:
+        import re
         from playwright.sync_api import sync_playwright
 
         with sync_playwright() as p:
@@ -99,18 +105,19 @@ def obtener_tasas_mercadopago():
 
             tasa = "-"
 
-            # Buscar específicamente el h3 con la clase donde aparece el porcentaje
+            # 1) Intento: h3 visible
             bloque = page.query_selector("h3.acqui-animated-info-block__content-wordings-sub-title")
             if bloque:
-                texto = bloque.inner_text().lower()
-                # Ejemplo: "ganancias de hasta 13% anual"
-                for part in texto.split():
-                    if "%" in part:
-                        try:
-                            tasa = float(part.replace("%", "").strip())
-                            break
-                        except:
-                            continue
+                texto = bloque.inner_text().strip()
+                match = re.search(r"(\d+(?:[.,]\d+)?)\s*%", texto)
+                if match:
+                    tasa = float(match.group(1).replace(",", "."))
+            else:
+                # 2) Fallback: buscar en el HTML embebido
+                html = page.content()
+                m = re.search(r'"subTitle"\s*:\s*"[^"]*?(\d+(?:[.,]\d+)?)\s*%[^"]*"', html)
+                if m:
+                    tasa = float(m.group(1).replace(",", "."))
 
             browser.close()
             return {"rendimiento_anual_fijo": tasa}
