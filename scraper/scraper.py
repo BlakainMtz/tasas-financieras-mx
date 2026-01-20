@@ -89,9 +89,8 @@ def obtener_tasas_nu():
 
 def obtener_tasas_mercadopago():
     """
-    Scrapea la página de Mercado Pago para obtener la tasa de rendimiento anual fija.
-    Intenta primero leer el h3 visible con el texto 'Ganancias de hasta XX% anual'.
-    Si no lo encuentra, busca en el JSON embebido dentro del HTML.
+    Extrae la tasa de Mercado Pago desde el JSON embebido en la página,
+    buscando el campo "subTitle":"Ganancias de hasta XX% anual".
     """
     try:
         import re
@@ -103,23 +102,16 @@ def obtener_tasas_mercadopago():
             page.goto("https://www.mercadopago.com.mx/cuenta", timeout=60000)
             page.wait_for_load_state("networkidle")
 
-            tasa = "-"
-
-            # 1) Intento: h3 visible
-            bloque = page.query_selector("h3.acqui-animated-info-block__content-wordings-sub-title")
-            if bloque:
-                texto = bloque.inner_text().strip()
-                match = re.search(r"(\d+(?:[.,]\d+)?)\s*%", texto)
-                if match:
-                    tasa = float(match.group(1).replace(",", "."))
-            else:
-                # 2) Fallback: buscar en el HTML embebido
-                html = page.content()
-                m = re.search(r'"subTitle"\s*:\s*"[^"]*?(\d+(?:[.,]\d+)?)\s*%[^"]*"', html)
-                if m:
-                    tasa = float(m.group(1).replace(",", "."))
-
+            html = page.content()
             browser.close()
+
+            # Buscar el número dentro del subTitle
+            m = re.search(r'"subTitle"\s*:\s*"[^"]*?(\d+(?:[.,]\d+)?)\s*%[^"]*"', html)
+            if m:
+                tasa = float(m.group(1).replace(",", "."))
+            else:
+                tasa = "-"
+
             return {"rendimiento_anual_fijo": tasa}
 
     except Exception as e:
