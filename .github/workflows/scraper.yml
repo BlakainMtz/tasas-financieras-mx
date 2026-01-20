@@ -42,12 +42,13 @@ jobs:
           git diff --cached --quiet || git commit -m "Actualización automática de tasas"
           git push https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }} HEAD:main
 
-      - name: Subir tasas.json a Hostinger via SFTP
-        uses: appleboy/scp-action@v0.1.7
+      - name: Subir tasas.json a Hostinger via FTP
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.4
         with:
-          host: ${{ secrets.SSH_HOST }}
-          port: ${{ secrets.SSH_PORT }}
-          username: ${{ secrets.SSH_USERNAME }}
-          password: ${{ secrets.SSH_PASSWORD }}
-          source: "data/tasas.json"
-          target: "public_html/data/"
+          server: ${{ secrets.FTP_SERVER }}
+          username: ${{ secrets.FTP_USERNAME }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          port: ${{ secrets.FTP_PORT }}
+          protocol: ftp
+          local-dir: data/
+          server-dir: public_html/data/
