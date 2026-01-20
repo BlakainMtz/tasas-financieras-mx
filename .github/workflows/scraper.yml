@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write   # 👈 da permiso de escritura al GITHUB_TOKEN
+  contents: write
 
 jobs:
   run-scraper:
@@ -42,13 +42,13 @@ jobs:
           git diff --cached --quiet || git commit -m "Actualización automática de tasas"
           git push https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }} HEAD:main
 
-      - name: Subir tasas.json a Hostinger via FTP
+      - name: Subir tasas.json a Hostinger via SFTP
         uses: SamKirkland/FTP-Deploy-Action@v4.3.4
         with:
-          server: ${{ secrets.FTP_SERVER }}
-          username: ${{ secrets.FTP_USERNAME }}
-          password: ${{ secrets.FTP_PASSWORD }}
-          port: ${{ secrets.FTP_PORT }}
-          protocol: ftp
+          server: ${{ secrets.FTP_SERVER }}      # 82.180.175.243
+          username: ${{ secrets.FTP_USERNAME }}  # u703141570
+          password: ${{ secrets.FTP_PASSWORD }}  # tu contraseña SSH
+          port: ${{ secrets.FTP_PORT }}          # 65002
+          protocol: sftp
           local-dir: data/
           server-dir: public_html/data/
