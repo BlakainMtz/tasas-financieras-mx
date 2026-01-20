@@ -51,4 +51,4 @@ jobs:
           port: ${{ secrets.FTP_PORT }}
           protocol: ftp
           local-dir: data/
-          server-dir: public_html/data/
+          server-dir: ./
