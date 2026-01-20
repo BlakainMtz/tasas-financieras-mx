@@ -1,4 +1,5 @@
 {
+  "last_update": "2026-01-20T04:17:02.185882+00:00",
   "entidades": {
     "Nu": {
       "cajita_turbo": "-",
@@ -7,11 +8,21 @@
       "3_meses": "-",
       "6_meses": "-"
     },
-    "BONDDIA": {},
-    "CETES": {},
-    "MercadoPago": {
-      "rendimiento_anual_fijo": "-"
+    "BONDDIA": {
+      "a_la_vista": "-",
+      "1_semana": "-",
+      "1_mes": "-",
+      "3_meses": "-",
+      "6_meses": "-",
+      "1_ano": "-"
+    },
+    "CETES": {
+      "a_la_vista": "-",
+      "1_semana": "-",
+      "1_mes": 6.99,
+      "3_meses": 7.13,
+      "6_meses": 7.19,
+      "1_ano": 7.44
     }
-  },
-  "last_update": "2026-01-20T04:11:04.379523"
+  }
 }
