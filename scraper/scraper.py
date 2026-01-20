@@ -23,8 +23,6 @@ HEADERS_BANXICO = {
 
 def obtener_tasas_nu():
     try:
-        from playwright.sync_api import sync_playwright
-
         with sync_playwright() as p:
             browser = p.chromium.launch(headless=True)
             page = browser.new_page()
@@ -43,7 +41,6 @@ def obtener_tasas_nu():
             bloques = page.query_selector_all("div.MobileYieldBox__StyledBox-sc-849ojw-0")
 
             for bloque in bloques:
-                # Extraer todos los títulos dentro del bloque
                 titulos = bloque.query_selector_all("p.MobileYieldBox__StyledRowTitle-sc-849ojw-1")
                 porcentaje_el = bloque.query_selector("span.MobileYieldBox__StyledRowPercentage-sc-849ojw-4")
 
@@ -56,7 +53,6 @@ def obtener_tasas_nu():
                 except:
                     continue
 
-                # Revisar cada título para identificar el plazo correcto
                 for titulo_el in titulos:
                     titulo = titulo_el.inner_text().lower()
 
@@ -83,51 +79,45 @@ def obtener_tasas_nu():
             "3_meses": "-",
             "6_meses": "-"
         }
-# =========================
-# MERCADOPAGO (SCRAPING RENDIMIENTOS)
-# =========================
-
-def obtener_tasas_mercadopago():
-    """
-    Extrae la tasa de Mercado Pago buscando cualquier número seguido de '%' o '\u0025'
-    en el HTML embebido. Esto evita depender de un selector específico.
-    """
-    try:
-        import re
-        from playwright.sync_api import sync_playwright
-
-        with sync_playwright() as p:
-            browser = p.chromium.launch(headless=True)
-            page = browser.new_page()
-            page.goto("https://www.mercadopago.com.mx/cuenta", timeout=60000)
-            page.wait_for_load_state("networkidle")
-
-            html = page.content()
-            browser.close()
-
-            # Buscar número seguido de % o \u0025
-            match = re.search(r"(\d+(?:[.,]\d+)?)(?:\s*%|\s*\\u0025).*?anual", html, re.IGNORECASE)
-            if match:
-                tasa = float(match.group(1).replace(",", "."))
-            else:
-                tasa = "-"
-
-            return {"rendimiento_anual_fijo": tasa}
-
-    except Exception as e:
-        print("Error al obtener tasa de Mercado Pago:", e)
-        return {"rendimiento_anual_fijo": "-"}
 
 # =========================
-# CETES - TASA PROMEDIO SUBASTA
-@@ -192,14 +158,13 @@
-            "6_meses": obtener_tasa_banxico(SERIES_CETES["6_meses"]),
-            "1_ano": obtener_tasa_banxico(SERIES_CETES["1_ano"])
-        },
-        "MercadoPago": obtener_tasas_mercadopago()
-    }
+# CETES - TASA PROMEDIO SUBASTA (Banxico)
+# =========================
+
+SERIES_CETES = {
+    "28_dias": "SF43936",
+    "91_dias": "SF43937",
+    "182_dias": "SF43938",
+    "364_dias": "SF43939"
 }
 
+def obtener_tasa_banxico(serie_id):
+    try:
+        url = f"https://www.banxico.org.mx/SieAPIRest/service/v1/series/{serie_id}/datos/oportuno"
+        resp = requests.get(url, headers=HEADERS_BANXICO, timeout=30)
+        data = resp.json()
+        valor = data["bmx"]["series"][0]["datos"][0]["dato"]
+        return float(valor)
+    except Exception as e:
+        print(f"Error al obtener tasa Banxico {serie_id}:", e)
+        return "-"
+
+# =========================
+# MAIN
+# =========================
+
+def main():
+    data = {
+        "Nu": obtener_tasas_nu(),
+        "CETES": {
+            "1_mes": obtener_tasa_banxico(SERIES_CETES["28_dias"]),
+            "3_meses": obtener_tasa_banxico(SERIES_CETES["91_dias"]),
+            "6_meses": obtener_tasa_banxico(SERIES_CETES["182_dias"]),
+            "1_ano": obtener_tasa_banxico(SERIES_CETES["364_dias"])
+        }
+    }
+
+    os.makedirs(os.path.dirname(DATA_PATH), exist_ok=True)
     with open(DATA_PATH, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2, ensure_ascii=False)
 
