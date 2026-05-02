@@ -1,21 +1,6 @@
 {
   "last_update": "2026-05-02T15:53:58.584832+00:00",
   "entidades": {
-    "Nu": {
-      "cajita_turbo": "-",
-      "1_semana": "-",
-      "1_mes": "-",
-      "3_meses": "-",
-      "6_meses": "-"
-    },
-    "BONDDIA": {
-      "a_la_vista": "-",
-      "1_semana": "-",
-      "1_mes": "-",
-      "3_meses": "-",
-      "6_meses": "-",
-      "1_ano": "-"
-    },
     "CETES": {
       "a_la_vista": "-",
       "1_semana": "-",
