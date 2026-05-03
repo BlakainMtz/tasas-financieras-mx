@@ -160,15 +160,16 @@ def obtener_tasa_didi():
 
         html = response.text
 
-        # 🔥 Buscar porcentaje tipo "15%" o "14.5%"
-        match = re.search(r'(\d+\.\d+|\d+)\s*%', html)
+        # 🔥 Buscar específicamente "Tasa fija anual 15%"
+        match = re.search(
+            r'Tasa fija anual.*?(\d+\.\d+|\d+)\s*%',
+            html,
+            re.IGNORECASE | re.DOTALL
+        )
 
         if match:
             tasa = float(match.group(1))
-
-            # Validación básica (evita basura)
-            if 5 < tasa < 20:
-                return round(tasa, 2)
+            return round(tasa, 2)
 
     except Exception as e:
         print("Error obteniendo DIDI:", e)
