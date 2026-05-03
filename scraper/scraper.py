@@ -183,53 +183,50 @@ def obtener_tasa_didi():
 # FUNCIÓN OPENBANK
 # =========================
 
-import requests
+from playwright.sync_api import sync_playwright
 import re
 
 def obtener_tasa_openbank():
     url = "https://www.openbank.mx/cuenta-debito-open-plus"
 
     try:
-        headers = {"User-Agent": "Mozilla/5.0"}
-        response = requests.get(url, headers=headers, timeout=10)
-        response.raise_for_status()
+        with sync_playwright() as p:
+            browser = p.chromium.launch(headless=True)
+            page = browser.new_page()
 
-        html = response.text
+            page.goto(url, timeout=30000)
+            page.wait_for_timeout(5000)  # esperar render JS
+
+            html = page.content()
+            browser.close()
 
         # 🔥 limpiar comentarios
         html = re.sub(r'<!--.*?-->', '', html, flags=re.DOTALL)
 
-        # 🔥 buscar bloques donde aparece "a la vista" o "rendimiento"
-        bloques = re.findall(r'(.{0,200}?(?:a la vista|rendimiento|interés).{0,200}?)', html, re.IGNORECASE)
+        # 🔥 extraer porcentajes
+        porcentajes = re.findall(r'(\d+[.,]?\d*)\s*%', html)
 
-        porcentajes = []
+        valores = []
 
-        for bloque in bloques:
-            encontrados = re.findall(r'(\d+[.,]?\d*)\s*%', bloque)
+        for p in porcentajes:
+            try:
+                valores.append(float(p.replace(",", ".")))
+            except:
+                continue
 
-            for p in encontrados:
-                try:
-                    porcentajes.append(float(p.replace(",", ".")))
-                except:
-                    continue
-
-        # 🔥 filtrar rango bancario realista
-        valores = [v for v in porcentajes if 0 < v < 20]
-
+        valores = [v for v in valores if 0 < v < 30]
         valores = list(dict.fromkeys(valores))
 
-        print("Openbank valores filtrados:", valores)
+        print("Openbank valores:", valores)
 
         if not valores:
             return "-"
 
-        # 🔥 tomar el valor más probable real (no el máximo)
-        return round(valores[0], 2)
+        return round(max(valores), 2)
 
     except Exception as e:
         print("Error Openbank:", e)
-
-    return "-"
+        return "-"
 
 # =========================
 # MAIN
