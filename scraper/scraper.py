@@ -198,10 +198,29 @@ def obtener_tasa_openbank():
 
         data = response.json()
 
-        # 🔥 convertir JSON a string para buscar patrones
-        text = json.dumps(data)
+        # 🔥 navegar directamente al contenido relevante
+        node = data.get("result", {}) \
+                   .get("pageContext", {}) \
+                   .get("node", {}) \
+                   .get("data", {}) \
+                   .get("content", {})
 
-        # 🔥 buscar porcentajes
+        paragraphs = node.get("paragraphs", [])
+
+        textos = []
+
+        # 🔥 extraer SOLO campos relevantes
+        for p in paragraphs:
+            paragraph = p.get("paragraph", {})
+
+            # textos clave
+            if "value" in str(paragraph):
+                textos.append(json.dumps(paragraph))
+
+        # 🔥 unir todo
+        text = " ".join(textos)
+
+        # 🔥 buscar porcentajes reales
         porcentajes = re.findall(r'(\d+[.,]?\d*)\s*%', text)
 
         valores = []
@@ -221,11 +240,10 @@ def obtener_tasa_openbank():
         if not valores:
             return "-"
 
-        # 🔥 lógica correcta: tomar 13 si existe (principal tasa)
+        # 🔥 lógica real del producto (prioriza 13%)
         if 13 in valores:
             return 13.0
 
-        # fallback
         return round(max(valores), 2)
 
     except Exception as e:
