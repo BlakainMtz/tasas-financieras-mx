@@ -197,11 +197,11 @@ def main():
         },
 
         # 🔥 NUEVO BLOQUE (NO AFECTA LO DEMÁS)
-        "NU": obtener_tasas_nu()
+        "NU": obtener_tasas_nu(),
 
         "DIDICUENTA": {
     "a_la_vista": obtener_tasa_didi()
-},
+}
     }
 
     with open(DATA_PATH, "w", encoding="utf-8") as f:
