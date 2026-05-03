@@ -2,42 +2,40 @@ name: Actualizar tasas
 
 on:
   schedule:
+    # Todos los días a las 15:00 UTC (9:00 AM hora de México)
     - cron: "0 15 * * *"
   workflow_dispatch:
 
 permissions:
   contents: write
 
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-
 jobs:
   run-scraper:
     runs-on: ubuntu-latest
 
     steps:
-      # 1. Checkout
+      # 1. Descargar el repo
       - name: Checkout repo
         uses: actions/checkout@v4
 
-      # 2. Python
+      # 2. Configurar Python
       - name: Configurar Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
 
-      # 3. Dependencias
+      # 3. Instalar dependencias
       - name: Instalar dependencias
         run: |
           python -m pip install --upgrade pip
           pip install -r scraper/requirements.txt
 
-      # 4. Scraper
+      # 4. Ejecutar scraper
       - name: Ejecutar scraper
         run: python scraper/scraper.py
 
-      # 5. Commit
-      - name: Commit y push de cetes.json
+      # 5. Commit y push del JSON
+      - name: Commit y push de tasas.json
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -47,16 +45,14 @@ jobs:
           git diff --cached --quiet || git commit -m "Actualización automática de tasas"
           git push https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }} HEAD:main
 
-      # 6. Deploy FTP (MEJORADO)
+      # 6. Subir tasas.json a Hostinger (FTP)
       - name: Subir tasas.json a Hostinger
         uses: SamKirkland/FTP-Deploy-Action@v4.3.4
         with:
           server: ${{ secrets.FTP_SERVER }}
           username: ${{ secrets.FTP_USERNAME }}
           password: ${{ secrets.FTP_PASSWORD }}
-          protocol: ftps
           port: 21
+          protocol: ftp
           local-dir: data/
           server-dir: /domains/misfinanzasdigitales.com/public_html/
-          timeout: 120000
-          log-level: verbose
