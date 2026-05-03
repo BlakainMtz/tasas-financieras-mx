@@ -43,7 +43,7 @@ def obtener_tasa(serie_id):
     except Exception as e:
         print(f"Error en serie {serie_id}:", e)
 
-    return "-"
+    return None
 
 # =========================
 # FUNCIÓN BONDDIA
@@ -70,7 +70,7 @@ def obtener_tasa_bonddia():
     except Exception as e:
         print("Error obteniendo BONDDIA:", e)
 
-    return "-"
+    return None
 
 # =========================
 # FUNCIÓN NU (NUEVA)
@@ -177,7 +177,7 @@ def obtener_tasa_didi():
     except Exception as e:
         print("Error obteniendo DIDI:", e)
 
-    return "-"
+    return None
 
 # =========================
 # FUNCIÓN OPENBANK
@@ -248,7 +248,7 @@ def obtener_tasa_openbank():
 
     except Exception as e:
         print("Error Openbank:", e)
-        return "-"
+        return None
 
 # =========================
 # MAIN
