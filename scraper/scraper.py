@@ -144,6 +144,38 @@ def obtener_tasas_nu():
     }
 
 # =========================
+# FUNCIÓN DIDICUENTA (NUEVA)
+# =========================
+
+def obtener_tasa_didi():
+    url = "https://web.didiglobal.com/mx/jpsofiexpress/didi-cuenta/"
+
+    try:
+        headers = {
+            "User-Agent": "Mozilla/5.0"
+        }
+
+        response = requests.get(url, headers=headers, timeout=10)
+        response.raise_for_status()
+
+        html = response.text
+
+        # 🔥 Buscar porcentaje tipo "15%" o "14.5%"
+        match = re.search(r'(\d+\.\d+|\d+)\s*%', html)
+
+        if match:
+            tasa = float(match.group(1))
+
+            # Validación básica (evita basura)
+            if 5 < tasa < 20:
+                return round(tasa, 2)
+
+    except Exception as e:
+        print("Error obteniendo DIDI:", e)
+
+    return "-"
+
+# =========================
 # MAIN
 # =========================
 
@@ -166,6 +198,10 @@ def main():
 
         # 🔥 NUEVO BLOQUE (NO AFECTA LO DEMÁS)
         "NU": obtener_tasas_nu()
+
+        "DIDICUENTA": {
+    "a_la_vista": obtener_tasa_didi()
+},
     }
 
     with open(DATA_PATH, "w", encoding="utf-8") as f:
