@@ -183,29 +183,57 @@ def obtener_tasa_didi():
 # FUNCIÓN OPENBANK
 # =========================
 
+import requests
+import re
+from datetime import datetime
+
 def obtener_tasa_openbank():
     url = "https://www.openbank.mx/cuenta-debito-open-plus"
 
     try:
-        headers = {"User-Agent": "Mozilla/5.0"}
+        headers = {
+            "User-Agent": "Mozilla/5.0"
+        }
+
         response = requests.get(url, headers=headers, timeout=10)
         response.raise_for_status()
 
         html = response.text
-        html = re.sub(r'<!--.*?-->', '', html)
 
-        porcentajes = re.findall(r'(\d+\.\d+|\d+)\s*%', html)
+        # 🔥 Limpiar comentarios HTML
+        html = re.sub(r'<!--.*?-->', '', html, flags=re.DOTALL)
 
-        valores = [float(p) for p in porcentajes]
-        valores = [v for v in valores if 5 < v < 20]
+        # 🔥 Extraer porcentajes (mejorado para casos como 13%, 13.0 %, 13,0 %)
+        raw_percentages = re.findall(r'(\d+[.,]?\d*)\s*%', html)
 
+        print("Openbank raw porcentajes:", raw_percentages)
+
+        valores = []
+
+        for p in raw_percentages:
+            try:
+                # 🔥 Normalizar coma decimal
+                valor = float(p.replace(",", "."))
+                valores.append(valor)
+            except:
+                continue
+
+        # 🔥 Filtrar rango lógico bancario
+        valores = [v for v in valores if 0 < v < 30]
+
+        # 🔥 Eliminar duplicados preservando orden
         valores_unicos = list(dict.fromkeys(valores))
 
         print("Openbank filtrados:", valores_unicos)
 
-        # 👉 devolver el mayor valor válido (o el primero)
-        if valores_unicos:
-            return max(valores_unicos)
+        # 🔥 Si no hay datos, regresar fallback
+        if not valores_unicos:
+            return "-"
+
+        # 🔥 Estrategia: tomar el valor más alto (normalmente tasa promocional o principal)
+        tasa_final = max(valores_unicos)
+
+        return round(tasa_final, 2)
 
     except Exception as e:
         print("Error obteniendo Openbank:", e)
