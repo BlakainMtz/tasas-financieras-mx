@@ -84,7 +84,7 @@ def obtener_tasas_nu():
             "User-Agent": "Mozilla/5.0"
         }
 
-        response = requests.get(url, headers=headers, timeout=10)
+        response = requests.get(url, headers=headers, timeout=15)
         response.raise_for_status()
 
         html = response.text
@@ -94,13 +94,15 @@ def obtener_tasas_nu():
             return round(float(match.group(1)), 2) if match else "-"
 
         tasas = {
-            "a_la_vista": extraer(r'dynamicYield":"(\d+\.\d+)"'),
-            "1_semana": extraer(r'dynamicYield7Days":"(\d+\.\d+)"'),
-            "1_mes": extraer(r'dynamicYield28Days":"(\d+\.\d+)"'),
-            "3_meses": extraer(r'dynamicYield90Days":"(\d+\.\d+)"'),
-            "6_meses": extraer(r'dynamicYield180Days":"(\d+\.\d+)"'),
-            "cajita_turbo": extraer(r'dynamicYieldTurbo":"(\d+\.\d+)"')
+            "a_la_vista": extraer(r'dynamicYield["\']?\s*:\s*"?(\d+\.\d+)"?'),
+            "1_semana": extraer(r'dynamicYield7Days["\']?\s*:\s*"?(\d+\.\d+)"?'),
+            "1_mes": extraer(r'dynamicYield28Days["\']?\s*:\s*"?(\d+\.\d+)"?'),
+            "3_meses": extraer(r'dynamicYield90Days["\']?\s*:\s*"?(\d+\.\d+)"?'),
+            "6_meses": extraer(r'dynamicYield180Days["\']?\s*:\s*"?(\d+\.\d+)"?'),
+            "cajita_turbo": extraer(r'dynamicYieldTurbo["\']?\s*:\s*"?(\d+\.\d+)"?')
         }
+
+        print("NU tasas detectadas:", tasas)  # 👈 DEBUG
 
         return tasas
 
