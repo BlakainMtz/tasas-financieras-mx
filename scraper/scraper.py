@@ -77,35 +77,55 @@ def obtener_tasa_bonddia():
 # =========================
 
 def obtener_tasas_nu():
-    url = "https://nu.com.mx/_next/static/chunks/9ca8a43837ec880c580cba5006a69553ded5a98b.5b28cdfe550ed74962e1.js"
+    base_url = "https://nu.com.mx/cuenta/rendimientos/"
 
     try:
         headers = {
             "User-Agent": "Mozilla/5.0"
         }
 
-        js = requests.get(url, headers=headers, timeout=15).text
+        html = requests.get(base_url, headers=headers, timeout=15).text
 
-        # 🔥 EXTRAER DIRECTAMENTE DEL BLOQUE values
-        match = re.search(r'values:\s*{([^}]+)}', js)
-
-        if not match:
-            raise Exception("No se encontró el bloque values")
-
-        bloque = match.group(1)
-
-        def extraer(clave):
-            m = re.search(rf'{clave}:\s*"(\d+\.\d+)"', bloque)
-            return round(float(m.group(1)), 2) if m else "-"
+        # 🔥 Buscar TODOS los chunks JS
+        js_files = re.findall(r'src="(/_next/static/chunks/[^"]+\.js)"', html)
 
         tasas = {
-            "a_la_vista": extraer("dynamicYield"),
-            "1_semana": extraer("dynamicYield7Days"),
-            "1_mes": extraer("dynamicYield28Days"),
-            "3_meses": extraer("dynamicYield90Days"),
-            "6_meses": extraer("dynamicYield180Days"),
-            "cajita_turbo": extraer("dynamicYieldTurbo")
+            "a_la_vista": "-",
+            "1_semana": "-",
+            "1_mes": "-",
+            "3_meses": "-",
+            "6_meses": "-",
+            "cajita_turbo": "-"
         }
+
+        for js_path in js_files:
+            full_url = "https://nu.com.mx" + js_path
+
+            try:
+                js = requests.get(full_url, headers=headers, timeout=10).text
+
+                # 🔥 Buscar valores directamente en TODO el archivo
+                patrones = {
+                    "a_la_vista": r'dynamicYield[:"]\s*"?(\d+\.\d+)',
+                    "1_semana": r'dynamicYield7Days[:"]\s*"?(\d+\.\d+)',
+                    "1_mes": r'dynamicYield28Days[:"]\s*"?(\d+\.\d+)',
+                    "3_meses": r'dynamicYield90Days[:"]\s*"?(\d+\.\d+)',
+                    "6_meses": r'dynamicYield180Days[:"]\s*"?(\d+\.\d+)',
+                    "cajita_turbo": r'dynamicYieldTurbo[:"]\s*"?(\d+\.\d+)'
+                }
+
+                for clave, patron in patrones.items():
+                    if tasas[clave] == "-":  # solo si aún no se encontró
+                        match = re.search(patron, js)
+                        if match:
+                            tasas[clave] = round(float(match.group(1)), 2)
+
+                # 🔥 Si ya encontró todo, salimos
+                if all(v != "-" for v in tasas.values()):
+                    break
+
+            except:
+                continue
 
         print("NU tasas detectadas:", tasas)
 
