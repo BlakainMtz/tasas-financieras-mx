@@ -114,7 +114,7 @@ def obtener_tasas_nu():
             print("Porcentajes detectados:", porcentajes)
 
             # Filtrar valores razonables
-            valores = [float(p) for p in porcentajes if 0 < float(p) < 20]
+            valores = [float(p) for p in porcentajes if 5 < float(p) < 9]
 
             # Eliminar duplicados manteniendo orden
             valores_unicos = []
