@@ -115,7 +115,7 @@ def obtener_tasas_nu():
                 contenido,
                 re.IGNORECASE | re.DOTALL
             )
-            return round(float(match.group(2)), 2) if match else "-"
+            return round(float(match.group(2)), 2) if match else None
 
         # 🔥 MAPEO
         tasas = {
@@ -135,12 +135,12 @@ def obtener_tasas_nu():
         print("Error con Playwright NU:", e)
 
     return {
-        "a_la_vista": "-",
-        "1_semana": "-",
-        "1_mes": "-",
-        "3_meses": "-",
-        "6_meses": "-",
-        "cajita_turbo": "-"
+        "a_la_vista": None,
+        "1_semana": None,
+        "1_mes": None,
+        "3_meses": None,
+        "6_meses": None,
+        "cajita_turbo": None
     }
 
 # =========================
@@ -238,7 +238,7 @@ def obtener_tasa_openbank():
         print("Openbank valores:", valores)
 
         if not valores:
-            return "-"
+            return None
 
         # 🔥 lógica real del producto (prioriza 13%)
         if 13 in valores:
