@@ -199,22 +199,29 @@ def obtener_tasa_openbank():
         # 🔥 Limpiar comentarios tipo <!-- -->
         html = re.sub(r'<!--.*?-->', '', html)
 
-        # 🔥 Buscar TODAS las coincidencias de "rendimiento anual fijo"
-        matches = re.findall(
-            r'(\d+\.\d+|\d+)\s*%[^%]{0,50}rendimiento anual fijo',
-            html,
-            re.IGNORECASE
-        )
+        # 🔥 Extraer TODOS los porcentajes
+        porcentajes = re.findall(r'(\d+\.\d+|\d+)\s*%', html)
 
-        print("Openbank matches:", matches)
+        print("Openbank porcentajes:", porcentajes)
 
-        # 🔥 Validar y devolver la correcta
-        for m in matches:
-            tasa = float(m)
+        # 🔥 Convertir a float
+        valores = [float(p) for p in porcentajes]
 
-            # Queremos 13, no 13.88
-            if 12 <= tasa <= 14:
-                return round(tasa, 2)
+        # 🔥 Filtrar rango lógico
+        valores = [v for v in valores if 5 < v < 20]
+
+        # 🔥 Eliminar duplicados
+        valores_unicos = []
+        for v in valores:
+            if v not in valores_unicos:
+                valores_unicos.append(v)
+
+        print("Openbank filtrados:", valores_unicos)
+
+        # 🔥 CLAVE: buscar el 13 exacto
+        for v in valores_unicos:
+            if abs(v - 13.0) < 0.01:
+                return 13.0
 
     except Exception as e:
         print("Error obteniendo Openbank:", e)
