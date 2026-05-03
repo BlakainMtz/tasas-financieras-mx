@@ -77,34 +77,55 @@ def obtener_tasa_bonddia():
 # =========================
 
 def obtener_tasas_nu():
-    url = "https://nu.com.mx/_next/static/chunks/9ca8a43837ec880c580cba5006a69553ded5a98b.5b28cdfe550ed74962e1.js"
+    base_url = "https://nu.com.mx"
 
     try:
         headers = {
             "User-Agent": "Mozilla/5.0"
         }
 
-        response = requests.get(url, headers=headers, timeout=15)
-        response.raise_for_status()
+        # 1. Obtener HTML
+        html = requests.get(f"{base_url}/cuenta/rendimientos/", headers=headers, timeout=15).text
 
-        js = response.text
+        # 2. Buscar TODOS los JS chunks (no solo uno)
+        js_files = re.findall(r'/_next/static/chunks/[^"]+\.js', html)
 
-        def extraer(clave):
-            match = re.search(rf'{clave}:\s*"(\d+\.\d+)"', js)
-            return round(float(match.group(1)), 2) if match else "-"
+        tasas = None
 
-        tasas = {
-            "a_la_vista": extraer("dynamicYield"),
-            "1_semana": extraer("dynamicYield7Days"),
-            "1_mes": extraer("dynamicYield28Days"),
-            "3_meses": extraer("dynamicYield90Days"),
-            "6_meses": extraer("dynamicYield180Days"),
-            "cajita_turbo": extraer("dynamicYieldTurbo")
-        }
+        # 3. Revisar cada JS hasta encontrar el que tenga "dynamicYield"
+        for path in js_files:
+            js_url = base_url + path
+            js = requests.get(js_url, headers=headers, timeout=15).text
 
-        print("NU tasas detectadas:", tasas)  # DEBUG
+            if "dynamicYield" in js:
+                print("JS correcto encontrado:", js_url)
 
-        return tasas
+                # 🔥 Extraer bloque completo de values
+                match = re.search(r'values:\s*{([^}]+)}', js)
+
+                if match:
+                    bloque = match.group(1)
+
+                    def extraer(clave):
+                        m = re.search(rf'{clave}:\s*"(\d+\.\d+)"', bloque)
+                        return round(float(m.group(1)), 2) if m else "-"
+
+                    tasas = {
+                        "a_la_vista": extraer("dynamicYield"),
+                        "1_semana": extraer("dynamicYield7Days"),
+                        "1_mes": extraer("dynamicYield28Days"),
+                        "3_meses": extraer("dynamicYield90Days"),
+                        "6_meses": extraer("dynamicYield180Days"),
+                        "cajita_turbo": extraer("dynamicYieldTurbo")
+                    }
+
+                    break
+
+        if tasas:
+            print("NU tasas detectadas:", tasas)
+            return tasas
+
+        raise Exception("No se encontró bloque de tasas en ningún JS")
 
     except Exception as e:
         print("Error obteniendo tasas NU:", e)
