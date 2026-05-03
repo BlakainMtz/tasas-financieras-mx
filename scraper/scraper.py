@@ -124,7 +124,6 @@ def obtener_tasas_nu():
         "6_meses": "-",
         "cajita_turbo": "-"
     }
-        return tasas
 
 # =========================
 # MAIN
