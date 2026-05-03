@@ -77,59 +77,39 @@ def obtener_tasa_bonddia():
 # =========================
 
 def obtener_tasas_nu():
-    base_url = "https://nu.com.mx"
+    url = "https://nu.com.mx/_next/static/chunks/9ca8a43837ec880c580cba5006a69553ded5a98b.5b28cdfe550ed74962e1.js"
 
     try:
         headers = {
             "User-Agent": "Mozilla/5.0"
         }
 
-        # 1. Obtener HTML
-        html = requests.get(f"{base_url}/cuenta/rendimientos/", headers=headers, timeout=15).text
+        js = requests.get(url, headers=headers, timeout=15).text
 
-        # 2. Extraer TODOS los scripts JS
-        scripts = re.findall(r'<script[^>]+src="([^"]+\.js)"', html)
+        # 🔥 EXTRAER DIRECTAMENTE DEL BLOQUE values
+        match = re.search(r'values:\s*{([^}]+)}', js)
 
-        tasas = None
+        if not match:
+            raise Exception("No se encontró el bloque values")
 
-        # 3. Revisar cada JS
-        for src in scripts:
-            if not src.startswith("http"):
-                js_url = base_url + src
-            else:
-                js_url = src
+        bloque = match.group(1)
 
-            try:
-                js = requests.get(js_url, headers=headers, timeout=10).text
+        def extraer(clave):
+            m = re.search(rf'{clave}:\s*"(\d+\.\d+)"', bloque)
+            return round(float(m.group(1)), 2) if m else "-"
 
-                # 🚨 Solo procesar si contiene datos relevantes
-                if "dynamicYield" in js:
+        tasas = {
+            "a_la_vista": extraer("dynamicYield"),
+            "1_semana": extraer("dynamicYield7Days"),
+            "1_mes": extraer("dynamicYield28Days"),
+            "3_meses": extraer("dynamicYield90Days"),
+            "6_meses": extraer("dynamicYield180Days"),
+            "cajita_turbo": extraer("dynamicYieldTurbo")
+        }
 
-                    print("JS correcto:", js_url)
+        print("NU tasas detectadas:", tasas)
 
-                    def extraer(clave):
-                        match = re.search(rf'{clave}:\s*"(\d+\.\d+)"', js)
-                        return round(float(match.group(1)), 2) if match else "-"
-
-                    tasas = {
-                        "a_la_vista": extraer("dynamicYield"),
-                        "1_semana": extraer("dynamicYield7Days"),
-                        "1_mes": extraer("dynamicYield28Days"),
-                        "3_meses": extraer("dynamicYield90Days"),
-                        "6_meses": extraer("dynamicYield180Days"),
-                        "cajita_turbo": extraer("dynamicYieldTurbo")
-                    }
-
-                    break
-
-            except Exception:
-                continue
-
-        if tasas:
-            print("NU tasas detectadas:", tasas)
-            return tasas
-
-        raise Exception("No se encontraron tasas en ningún JS")
+        return tasas
 
     except Exception as e:
         print("Error obteniendo tasas NU:", e)
