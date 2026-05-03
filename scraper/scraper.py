@@ -196,19 +196,22 @@ def obtener_tasa_openbank():
 
         html = response.text
 
-        # 🔥 Limpiar posibles comentarios tipo <!-- -->
+        # 🔥 Limpiar HTML
         html_limpio = re.sub(r'<!--.*?-->', '', html)
 
-        # 🔥 Buscar específicamente el rendimiento anual fijo
+        # 🔥 Buscar el texto correcto primero
         match = re.search(
-            r'(\d+\.\d+|\d+)\s*%.*?rendimiento anual fijo',
+            r'rendimiento anual fijo.*?(\d+\.\d+|\d+)\s*%',
             html_limpio,
             re.IGNORECASE | re.DOTALL
         )
 
         if match:
             tasa = float(match.group(1))
-            return round(tasa, 2)
+
+            # 🔥 Validación extra (por si algo raro pasa)
+            if 5 < tasa < 20:
+                return round(tasa, 2)
 
     except Exception as e:
         print("Error obteniendo Openbank:", e)
