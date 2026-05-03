@@ -110,21 +110,21 @@ def obtener_tasas_nu():
 
         # 🔥 FUNCIÓN INTELIGENTE (busca por contexto correcto)
         def extraer(label):
-            match = re.search(
-                rf'{label}.*?(\d+\.\d+)\s*%',
-                contenido,
-                re.IGNORECASE | re.DOTALL
-            )
-            return round(float(match.group(1)), 2) if match else "-"
+    match = re.search(
+        rf'({label}.{{0,80}}?(\d+\.\d+)\s*%)',
+        contenido,
+        re.IGNORECASE | re.DOTALL
+    )
+    return round(float(match.group(2)), 2) if match else "-"
 
         tasas = {
-            "a_la_vista": extraer(r"a la vista"),
-            "1_semana": extraer(r"7 días"),
-            "1_mes": extraer(r"28 días"),
-            "3_meses": extraer(r"90 días"),
-            "6_meses": extraer(r"180 días"),
-            "cajita_turbo": extraer(r"Turbo")
-        }
+    "a_la_vista": extraer(r"a la vista"),
+    "1_semana": extraer(r"7 días"),
+    "1_mes": extraer(r"28 días"),
+    "3_meses": extraer(r"90 días"),
+    "6_meses": extraer(r"180 días"),
+    "cajita_turbo": extraer(r"Turbo")
+}
 
         print("NU tasas detectadas:", tasas)
 
