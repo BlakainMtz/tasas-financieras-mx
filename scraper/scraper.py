@@ -77,32 +77,40 @@ def obtener_tasa_bonddia():
 # =========================
 
 def obtener_tasas_nu():
-    url = "https://nu.com.mx/cuenta/rendimientos/"
+    base_url = "https://nu.com.mx"
 
     try:
         headers = {
             "User-Agent": "Mozilla/5.0"
         }
 
-        response = requests.get(url, headers=headers, timeout=15)
-        response.raise_for_status()
+        # 1. Obtener HTML
+        html = requests.get(f"{base_url}/cuenta/rendimientos/", headers=headers, timeout=15).text
 
-        html = response.text
+        # 2. Encontrar JS dinámico
+        match = re.search(r'/_next/static/chunks/[^"]+\.js', html)
+        if not match:
+            raise Exception("No se encontró el JS de Nu")
 
-        def extraer(patron):
-            match = re.search(patron, html)
+        js_url = base_url + match.group(0)
+
+        # 3. Descargar JS
+        js = requests.get(js_url, headers=headers, timeout=15).text
+
+        def extraer(clave):
+            match = re.search(rf'{clave}:\s*"(\d+\.\d+)"', js)
             return round(float(match.group(1)), 2) if match else "-"
 
         tasas = {
-            "a_la_vista": extraer(r'dynamicYield["\']?\s*:\s*"?(\d+\.\d+)"?'),
-            "1_semana": extraer(r'dynamicYield7Days["\']?\s*:\s*"?(\d+\.\d+)"?'),
-            "1_mes": extraer(r'dynamicYield28Days["\']?\s*:\s*"?(\d+\.\d+)"?'),
-            "3_meses": extraer(r'dynamicYield90Days["\']?\s*:\s*"?(\d+\.\d+)"?'),
-            "6_meses": extraer(r'dynamicYield180Days["\']?\s*:\s*"?(\d+\.\d+)"?'),
-            "cajita_turbo": extraer(r'dynamicYieldTurbo["\']?\s*:\s*"?(\d+\.\d+)"?')
+            "a_la_vista": extraer("dynamicYield"),
+            "1_semana": extraer("dynamicYield7Days"),
+            "1_mes": extraer("dynamicYield28Days"),
+            "3_meses": extraer("dynamicYield90Days"),
+            "6_meses": extraer("dynamicYield180Days"),
+            "cajita_turbo": extraer("dynamicYieldTurbo")
         }
 
-        print("NU tasas detectadas:", tasas)  # 👈 DEBUG
+        print("NU tasas detectadas:", tasas)
 
         return tasas
 
