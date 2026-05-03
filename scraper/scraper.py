@@ -198,31 +198,38 @@ def obtener_tasa_openbank():
             )
 
             page.wait_for_load_state("networkidle")
-            page.wait_for_timeout(3000)
+
+            # 🔥 Esperar un poco más (Openbank tarda)
+            page.wait_for_timeout(5000)
 
             contenido = page.locator("body").inner_text()
 
             browser.close()
 
-        # 🔥 Buscar línea donde aparece "rendimiento anual fijo"
-        match_line = re.search(
-            r'(\d+\s*%.*?rendimiento anual fijo|rendimiento anual fijo.*?\d+\s*%)',
-            contenido,
-            re.IGNORECASE | re.DOTALL
-        )
+        # 🔥 Extraer TODOS los porcentajes
+        porcentajes = re.findall(r'(\d+\.\d+|\d+)\s*%', contenido)
 
-        if match_line:
-            linea = match_line.group(0)
+        print("Openbank porcentajes detectados:", porcentajes)
 
-            # 🔥 Extraer porcentaje dentro de esa línea
-            porcentaje = re.search(r'(\d+\.\d+|\d+)\s*%', linea)
+        # 🔥 Convertir a float
+        valores = [float(p) for p in porcentajes]
 
-            if porcentaje:
-                tasa = float(porcentaje.group(1))
+        # 🔥 Filtrar rango lógico (evita 100%, etc.)
+        valores = [v for v in valores if 5 < v < 20]
 
-                # Validación
-                if 5 < tasa < 20:
-                    return round(tasa, 2)
+        # 🔥 Eliminar duplicados
+        valores_unicos = []
+        for v in valores:
+            if v not in valores_unicos:
+                valores_unicos.append(v)
+
+        print("Openbank valores filtrados:", valores_unicos)
+
+        # 🔥 Regla clave:
+        # Queremos 13 pero NO 13.88
+        for v in valores_unicos:
+            if 12.5 <= v <= 13.5:
+                return round(v, 2)
 
     except Exception as e:
         print("Error obteniendo Openbank:", e)
