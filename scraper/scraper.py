@@ -76,28 +76,48 @@ def obtener_tasa_bonddia():
 # FUNCIÓN NU (NUEVA)
 # =========================
 
+from playwright.sync_api import sync_playwright
+import re
+
 def obtener_tasas_nu():
     try:
         with sync_playwright() as p:
-            browser = p.chromium.launch(headless=True)
+            browser = p.chromium.launch(
+                headless=True,
+                args=["--disable-blink-features=AutomationControlled"]
+            )
+
             page = browser.new_page()
 
-            page.goto("https://nu.com.mx/cuenta/rendimientos/", timeout=60000)
+            page.goto(
+                "https://nu.com.mx/cuenta/rendimientos/",
+                timeout=60000
+            )
 
-            # Scroll hasta abajo
-            page.evaluate("""
-                window.scrollTo(0, document.body.scrollHeight)
-            """)
+            # 🔥 Esperar a que cargue todo
+            page.wait_for_load_state("networkidle")
 
-            page.wait_for_timeout(5000)
+            # 🔥 Scroll progresivo (simula usuario real)
+            for _ in range(10):
+                page.mouse.wheel(0, 2000)
+                page.wait_for_timeout(800)
 
-            # 🔥 EXTRAER TEXTO VISIBLE
-            textos = page.locator("body").inner_text()
+            # 🔥 Scroll final hasta abajo
+            page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+            page.wait_for_timeout(3000)
+
+            # 🔥 Obtener TODO el texto visible
+            contenido = page.locator("body").inner_text()
 
             browser.close()
 
+        # 🔥 Función para extraer tasas
         def extraer(label):
-            match = re.search(rf'(\d+\.\d+)\s*%.*?{label}', textos, re.IGNORECASE)
+            match = re.search(
+                rf'(\d+\.\d+)\s*%.*?{label}',
+                contenido,
+                re.IGNORECASE | re.DOTALL
+            )
             return round(float(match.group(1)), 2) if match else "-"
 
         tasas = {
