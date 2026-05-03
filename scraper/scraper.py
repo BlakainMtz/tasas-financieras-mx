@@ -77,6 +77,8 @@ def obtener_tasa_bonddia():
 # =========================
 
 from playwright.sync_api import sync_playwright
+import re
+import time
 
 def obtener_tasas_nu():
     try:
@@ -86,24 +88,32 @@ def obtener_tasas_nu():
 
             page.goto("https://nu.com.mx/cuenta/rendimientos/", timeout=60000)
 
-            # Esperar a que cargue contenido dinámico
+            # 🔥 SCROLL PROGRESIVO (CLAVE)
+            for _ in range(10):
+                page.mouse.wheel(0, 2000)
+                time.sleep(1)
+
+            # 🔥 Esperar a que aparezca texto clave
             page.wait_for_timeout(5000)
 
             content = page.content()
 
             browser.close()
 
+        # 🔥 DEBUG (opcional, muy útil)
+        # print(content)
+
         def extraer(pattern):
-            match = re.search(pattern, content)
+            match = re.search(pattern, content, re.IGNORECASE | re.DOTALL)
             return round(float(match.group(1)), 2) if match else "-"
 
         tasas = {
-            "a_la_vista": extraer(r'(\d+\.\d+)\s*%\s*GAT.*?a la vista'),
-            "1_semana": extraer(r'(\d+\.\d+)\s*%\s*GAT.*?7 días'),
-            "1_mes": extraer(r'(\d+\.\d+)\s*%\s*GAT.*?28 días'),
-            "3_meses": extraer(r'(\d+\.\d+)\s*%\s*GAT.*?90 días'),
-            "6_meses": extraer(r'(\d+\.\d+)\s*%\s*GAT.*?180 días'),
-            "cajita_turbo": extraer(r'(\d+\.\d+)\s*%\s*GAT.*?Turbo')
+            "a_la_vista": extraer(r'(\d+\.\d+)\s*%.*?a la vista'),
+            "1_semana": extraer(r'(\d+\.\d+)\s*%.*?7 días'),
+            "1_mes": extraer(r'(\d+\.\d+)\s*%.*?28 días'),
+            "3_meses": extraer(r'(\d+\.\d+)\s*%.*?90 días'),
+            "6_meses": extraer(r'(\d+\.\d+)\s*%.*?180 días'),
+            "cajita_turbo": extraer(r'(\d+\.\d+)\s*%.*?Turbo')
         }
 
         print("NU tasas detectadas:", tasas)
