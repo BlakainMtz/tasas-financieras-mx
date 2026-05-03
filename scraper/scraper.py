@@ -89,16 +89,41 @@ def obtener_tasas_nu():
 
         html = response.text
 
-        tasas = {}
+        # 🔥 Extraer bloque donde están los valores
+        match_block = re.search(r'values:\s*{([^}]+)}', html)
 
-        patrones = {
-            "a_la_vista": r'dynamicYield":"(\d+\.\d+)"',
-            "1_semana": r'dynamicYield7Days":"(\d+\.\d+)"',
-            "1_mes": r'dynamicYield28Days":"(\d+\.\d+)"',
-            "3_meses": r'dynamicYield90Days":"(\d+\.\d+)"',
-            "6_meses": r'dynamicYield180Days":"(\d+\.\d+)"',
-            "cajita_turbo": r'dynamicYieldTurbo":"(\d+\.\d+)"'
+        if not match_block:
+            print("No se encontró bloque de valores NU")
+            raise Exception("Bloque no encontrado")
+
+        bloque = match_block.group(1)
+
+        def extraer(clave):
+            match = re.search(rf'{clave}:\s*"(\d+\.\d+)"', bloque)
+            return round(float(match.group(1)), 2) if match else "-"
+
+        tasas = {
+            "a_la_vista": extraer("dynamicYield"),
+            "1_semana": extraer("dynamicYield7Days"),
+            "1_mes": extraer("dynamicYield28Days"),
+            "3_meses": extraer("dynamicYield90Days"),
+            "6_meses": extraer("dynamicYield180Days"),
+            "cajita_turbo": extraer("dynamicYieldTurbo")
         }
+
+        return tasas
+
+    except Exception as e:
+        print("Error obteniendo tasas NU:", e)
+
+    return {
+        "a_la_vista": "-",
+        "1_semana": "-",
+        "1_mes": "-",
+        "3_meses": "-",
+        "6_meses": "-",
+        "cajita_turbo": "-"
+    }
 
         for clave, patron in patrones.items():
             match = re.search(patron, html)
