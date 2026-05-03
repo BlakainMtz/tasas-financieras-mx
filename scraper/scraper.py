@@ -183,31 +183,26 @@ def obtener_tasa_didi():
 # FUNCIÓN OPENBANK
 # =========================
 
-from playwright.sync_api import sync_playwright
+import requests
 import re
 
 def obtener_tasa_openbank():
     url = "https://www.openbank.mx/cuenta-debito-open-plus"
 
+    headers = {
+        "User-Agent": "Mozilla/5.0",
+        "Accept": "text/html,application/xhtml+xml,application/xml"
+    }
+
     try:
-        with sync_playwright() as p:
-            browser = p.chromium.launch(headless=True)
-            page = browser.new_page()
+        response = requests.get(url, headers=headers, timeout=10)
+        response.raise_for_status()
+        html = response.text
 
-            page.goto(url, timeout=30000)
-            page.wait_for_timeout(5000)  # esperar render JS
-
-            html = page.content()
-            browser.close()
-
-        # 🔥 limpiar comentarios
-        html = re.sub(r'<!--.*?-->', '', html, flags=re.DOTALL)
-
-        # 🔥 extraer porcentajes
+        # 🔍 1. intento rápido: buscar porcentajes directos
         porcentajes = re.findall(r'(\d+[.,]?\d*)\s*%', html)
 
         valores = []
-
         for p in porcentajes:
             try:
                 valores.append(float(p.replace(",", ".")))
@@ -215,14 +210,24 @@ def obtener_tasa_openbank():
                 continue
 
         valores = [v for v in valores if 0 < v < 30]
-        valores = list(dict.fromkeys(valores))
 
-        print("Openbank valores:", valores)
+        if valores:
+            return round(max(valores), 2)
 
-        if not valores:
-            return "-"
+        # 🔍 2. intento fallback: buscar JSON embebido
+        json_matches = re.findall(r'(\{.*?"rate".*?\})', html)
 
-        return round(max(valores), 2)
+        for match in json_matches:
+            nums = re.findall(r'(\d+[.,]?\d*)', match)
+            nums = [float(n.replace(",", ".")) for n in nums if n.replace(",", ".").replace(".", "").isdigit()]
+
+            nums = [n for n in nums if 0 < n < 30]
+
+            if nums:
+                return round(max(nums), 2)
+
+        # 🔍 3. fallback final
+        return "-"
 
     except Exception as e:
         print("Error Openbank:", e)
