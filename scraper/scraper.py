@@ -77,25 +77,17 @@ def obtener_tasa_bonddia():
 # =========================
 
 def obtener_tasas_nu():
-    base_url = "https://nu.com.mx"
+    url = "https://nu.com.mx/_next/static/chunks/9ca8a43837ec880c580cba5006a69553ded5a98b.5b28cdfe550ed74962e1.js"
 
     try:
         headers = {
             "User-Agent": "Mozilla/5.0"
         }
 
-        # 1. Obtener HTML
-        html = requests.get(f"{base_url}/cuenta/rendimientos/", headers=headers, timeout=15).text
+        response = requests.get(url, headers=headers, timeout=15)
+        response.raise_for_status()
 
-        # 2. Encontrar JS dinámico
-        match = re.search(r'/_next/static/chunks/[^"]+\.js', html)
-        if not match:
-            raise Exception("No se encontró el JS de Nu")
-
-        js_url = base_url + match.group(0)
-
-        # 3. Descargar JS
-        js = requests.get(js_url, headers=headers, timeout=15).text
+        js = response.text
 
         def extraer(clave):
             match = re.search(rf'{clave}:\s*"(\d+\.\d+)"', js)
@@ -110,7 +102,7 @@ def obtener_tasas_nu():
             "cajita_turbo": extraer("dynamicYieldTurbo")
         }
 
-        print("NU tasas detectadas:", tasas)
+        print("NU tasas detectadas:", tasas)  # DEBUG
 
         return tasas
 
