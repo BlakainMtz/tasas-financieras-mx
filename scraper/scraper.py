@@ -185,58 +185,49 @@ def obtener_tasa_didi():
 
 import requests
 import re
-from datetime import datetime
 
 def obtener_tasa_openbank():
     url = "https://www.openbank.mx/cuenta-debito-open-plus"
 
     try:
-        headers = {
-            "User-Agent": "Mozilla/5.0"
-        }
-
+        headers = {"User-Agent": "Mozilla/5.0"}
         response = requests.get(url, headers=headers, timeout=10)
         response.raise_for_status()
 
         html = response.text
 
-        # 🔥 Limpiar comentarios HTML
+        # 🔥 limpiar comentarios
         html = re.sub(r'<!--.*?-->', '', html, flags=re.DOTALL)
 
-        # 🔥 Extraer porcentajes (mejorado para casos como 13%, 13.0 %, 13,0 %)
-        raw_percentages = re.findall(r'(\d+[.,]?\d*)\s*%', html)
+        # 🔥 buscar bloques donde aparece "a la vista" o "rendimiento"
+        bloques = re.findall(r'(.{0,200}?(?:a la vista|rendimiento|interés).{0,200}?)', html, re.IGNORECASE)
 
-        print("Openbank raw porcentajes:", raw_percentages)
+        porcentajes = []
 
-        valores = []
+        for bloque in bloques:
+            encontrados = re.findall(r'(\d+[.,]?\d*)\s*%', bloque)
 
-        for p in raw_percentages:
-            try:
-                # 🔥 Normalizar coma decimal
-                valor = float(p.replace(",", "."))
-                valores.append(valor)
-            except:
-                continue
+            for p in encontrados:
+                try:
+                    porcentajes.append(float(p.replace(",", ".")))
+                except:
+                    continue
 
-        # 🔥 Filtrar rango lógico bancario
-        valores = [v for v in valores if 0 < v < 30]
+        # 🔥 filtrar rango bancario realista
+        valores = [v for v in porcentajes if 0 < v < 20]
 
-        # 🔥 Eliminar duplicados preservando orden
-        valores_unicos = list(dict.fromkeys(valores))
+        valores = list(dict.fromkeys(valores))
 
-        print("Openbank filtrados:", valores_unicos)
+        print("Openbank valores filtrados:", valores)
 
-        # 🔥 Si no hay datos, regresar fallback
-        if not valores_unicos:
+        if not valores:
             return "-"
 
-        # 🔥 Estrategia: tomar el valor más alto (normalmente tasa promocional o principal)
-        tasa_final = max(valores_unicos)
-
-        return round(tasa_final, 2)
+        # 🔥 tomar el valor más probable real (no el máximo)
+        return round(valores[0], 2)
 
     except Exception as e:
-        print("Error obteniendo Openbank:", e)
+        print("Error Openbank:", e)
 
     return "-"
 
