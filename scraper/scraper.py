@@ -94,35 +94,33 @@ def obtener_tasas_nu():
                 timeout=60000
             )
 
-            # 🔥 Esperar a que cargue todo
+            # Esperar carga completa
             page.wait_for_load_state("networkidle")
 
-            # 🔥 Scroll progresivo (simula usuario real)
+            # Scroll progresivo
             for _ in range(10):
                 page.mouse.wheel(0, 2000)
                 page.wait_for_timeout(800)
 
-            # 🔥 Scroll final hasta abajo
+            # Scroll final
             page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
             page.wait_for_timeout(3000)
 
-            # 🔥 Obtener TODO el texto visible
             contenido = page.locator("body").inner_text()
 
             browser.close()
 
-        # 🔥 Función para extraer tasas
+        # 🔥 FUNCIÓN BIEN INDENTADA
         def extraer(label):
-    # 🔥 Buscar bloque donde aparece el label
-    bloque = re.search(
-        rf'{label}.*?(\d+\.\d+)\s*%',
-        contenido,
-        re.IGNORECASE | re.DOTALL
-    )
-    return round(float(bloque.group(1)), 2) if bloque else "-"
+            bloque = re.search(
+                rf'{label}.*?(\d+\.\d+)\s*%',
+                contenido,
+                re.IGNORECASE | re.DOTALL
+            )
+            return round(float(bloque.group(1)), 2) if bloque else "-"
 
         tasas = {
-            "a_la_vista": extraer("a la vista"),
+            "a_la_vista": extraer("a la vista|diaria|disponible"),
             "1_semana": extraer("7 días"),
             "1_mes": extraer("28 días"),
             "3_meses": extraer("90 días"),
