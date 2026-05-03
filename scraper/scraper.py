@@ -142,7 +142,6 @@ def main():
             "a_la_vista": obtener_tasa_bonddia()
         },
 
-        # 🔥 NUEVO BLOQUE (NO AFECTA LO DEMÁS)
         "NU": obtener_tasas_nu()
     }
 
