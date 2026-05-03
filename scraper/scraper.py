@@ -180,6 +180,42 @@ def obtener_tasa_didi():
     return "-"
 
 # =========================
+# FUNCIÓN OPENBANK
+# =========================
+
+def obtener_tasa_openbank():
+    url = "https://www.openbank.mx/cuenta-debito-open-plus"
+
+    try:
+        headers = {
+            "User-Agent": "Mozilla/5.0"
+        }
+
+        response = requests.get(url, headers=headers, timeout=10)
+        response.raise_for_status()
+
+        html = response.text
+
+        # 🔥 Limpiar posibles comentarios tipo <!-- -->
+        html_limpio = re.sub(r'<!--.*?-->', '', html)
+
+        # 🔥 Buscar específicamente el rendimiento anual fijo
+        match = re.search(
+            r'(\d+\.\d+|\d+)\s*%.*?rendimiento anual fijo',
+            html_limpio,
+            re.IGNORECASE | re.DOTALL
+        )
+
+        if match:
+            tasa = float(match.group(1))
+            return round(tasa, 2)
+
+    except Exception as e:
+        print("Error obteniendo Openbank:", e)
+
+    return "-"
+
+# =========================
 # MAIN
 # =========================
 
@@ -205,7 +241,10 @@ def main():
 
         "DIDICUENTA": {
     "a_la_vista": obtener_tasa_didi()
-}
+},
+        "OPENBANK": {
+    "a_la_vista": obtener_tasa_openbank()
+},
     }
 
     with open(DATA_PATH, "w", encoding="utf-8") as f:
