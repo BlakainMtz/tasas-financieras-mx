@@ -187,41 +187,25 @@ def obtener_tasa_openbank():
     url = "https://www.openbank.mx/cuenta-debito-open-plus"
 
     try:
-        headers = {
-            "User-Agent": "Mozilla/5.0"
-        }
-
+        headers = {"User-Agent": "Mozilla/5.0"}
         response = requests.get(url, headers=headers, timeout=10)
         response.raise_for_status()
 
         html = response.text
-
-        # 🔥 Limpiar comentarios tipo <!-- -->
         html = re.sub(r'<!--.*?-->', '', html)
 
-        # 🔥 Extraer TODOS los porcentajes
         porcentajes = re.findall(r'(\d+\.\d+|\d+)\s*%', html)
 
-        print("Openbank porcentajes:", porcentajes)
-
-        # 🔥 Convertir a float
         valores = [float(p) for p in porcentajes]
-
-        # 🔥 Filtrar rango lógico
         valores = [v for v in valores if 5 < v < 20]
 
-        # 🔥 Eliminar duplicados
-        valores_unicos = []
-        for v in valores:
-            if v not in valores_unicos:
-                valores_unicos.append(v)
+        valores_unicos = list(dict.fromkeys(valores))
 
         print("Openbank filtrados:", valores_unicos)
 
-        # 🔥 CLAVE: buscar el 13 exacto
-        for v in valores_unicos:
-            if abs(v - 13.0) < 0.01:
-                return 13.0
+        # 👉 devolver el mayor valor válido (o el primero)
+        if valores_unicos:
+            return max(valores_unicos)
 
     except Exception as e:
         print("Error obteniendo Openbank:", e)
