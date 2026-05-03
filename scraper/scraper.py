@@ -94,7 +94,6 @@ def obtener_tasas_nu():
                 timeout=60000
             )
 
-            # Esperar carga completa
             page.wait_for_load_state("networkidle")
 
             # Scroll progresivo
@@ -108,28 +107,25 @@ def obtener_tasas_nu():
 
             contenido = page.locator("body").inner_text()
 
-            # 🔥 TODO esto DEBE ir dentro del try (bien indentado)
+            # 🔥 TODO ESTO DEBE ESTAR INDENTADO DENTRO DEL TRY
             porcentajes = re.findall(r'(\d+\.\d+)\s*%', contenido)
-
             print("Porcentajes detectados:", porcentajes)
 
-            # Filtrar valores realistas de NU (rango esperado)
-valores = [float(p) for p in porcentajes if 5 < float(p) < 9]
+            # 🔥 FILTRO CORRECTO
+            valores = [float(p) for p in porcentajes if 5 < float(p) < 9]
 
-# Eliminar duplicados manteniendo orden
-valores_unicos = []
-for v in valores:
-    if v not in valores_unicos:
-        valores_unicos.append(v)
+            # Eliminar duplicados
+            valores_unicos = []
+            for v in valores:
+                if v not in valores_unicos:
+                    valores_unicos.append(v)
 
-print("Valores filtrados:", valores_unicos)
+            print("Valores filtrados:", valores_unicos)
 
-# Validación mínima
-if len(valores_unicos) < 4:
-    print("⚠️ Posible cambio en estructura de NU")
+            if len(valores_unicos) < 4:
+                print("⚠️ Posible cambio en estructura de NU")
 
-# Tomar primeros 6
-valores_finales = valores_unicos[:6]
+            valores_finales = valores_unicos[:6]
 
             tasas = {
                 "a_la_vista": round(valores_finales[0], 2) if len(valores_finales) > 0 else "-",
