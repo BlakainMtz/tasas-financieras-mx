@@ -108,34 +108,33 @@ def obtener_tasas_nu():
 
             contenido = page.locator("body").inner_text()
 
-            # 🔥 Extraer TODOS los porcentajes en orden
-porcentajes = re.findall(r'(\d+\.\d+)\s*%', contenido)
+            # 🔥 TODO esto DEBE ir dentro del try (bien indentado)
+            porcentajes = re.findall(r'(\d+\.\d+)\s*%', contenido)
 
-print("Porcentajes detectados:", porcentajes)
+            print("Porcentajes detectados:", porcentajes)
 
-# 🔥 Filtrar valores razonables (evita ruido tipo 100%, etc.)
-valores = [float(p) for p in porcentajes if 0 < float(p) < 20]
+            # Filtrar valores razonables
+            valores = [float(p) for p in porcentajes if 0 < float(p) < 20]
 
-# 🔥 Eliminar duplicados manteniendo orden
-valores_unicos = []
-for v in valores:
-    if v not in valores_unicos:
-        valores_unicos.append(v)
+            # Eliminar duplicados manteniendo orden
+            valores_unicos = []
+            for v in valores:
+                if v not in valores_unicos:
+                    valores_unicos.append(v)
 
-print("Valores filtrados:", valores_unicos)
+            print("Valores filtrados:", valores_unicos)
 
-# 🔥 Tomar los primeros 6 relevantes
-valores_finales = valores_unicos[:6]
+            # Tomar primeros 6
+            valores_finales = valores_unicos[:6]
 
-# 🔥 Mapear correctamente
-tasas = {
-    "a_la_vista": round(valores_finales[0], 2) if len(valores_finales) > 0 else "-",
-    "1_semana": round(valores_finales[1], 2) if len(valores_finales) > 1 else "-",
-    "1_mes": round(valores_finales[2], 2) if len(valores_finales) > 2 else "-",
-    "3_meses": round(valores_finales[3], 2) if len(valores_finales) > 3 else "-",
-    "6_meses": round(valores_finales[4], 2) if len(valores_finales) > 4 else "-",
-    "cajita_turbo": round(valores_finales[5], 2) if len(valores_finales) > 5 else "-"
-}
+            tasas = {
+                "a_la_vista": round(valores_finales[0], 2) if len(valores_finales) > 0 else "-",
+                "1_semana": round(valores_finales[1], 2) if len(valores_finales) > 1 else "-",
+                "1_mes": round(valores_finales[2], 2) if len(valores_finales) > 2 else "-",
+                "3_meses": round(valores_finales[3], 2) if len(valores_finales) > 3 else "-",
+                "6_meses": round(valores_finales[4], 2) if len(valores_finales) > 4 else "-",
+                "cajita_turbo": round(valores_finales[5], 2) if len(valores_finales) > 5 else "-"
+            }
 
             browser.close()
 
