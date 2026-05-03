@@ -38,7 +38,7 @@ jobs:
         run: python scraper/scraper.py
 
       # 5. Commit y push del JSON
-      - name: Commit y push de tasas.json
+      - name: Commit y push de cetes.json
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
