@@ -183,35 +183,46 @@ def obtener_tasa_didi():
 # FUNCIÓN OPENBANK
 # =========================
 
+from playwright.sync_api import sync_playwright
+import re
+
 def obtener_tasa_openbank():
-    url = "https://www.openbank.mx/cuenta-debito-open-plus"
-
     try:
-        headers = {
-            "User-Agent": "Mozilla/5.0"
-        }
+        with sync_playwright() as p:
+            browser = p.chromium.launch(headless=True)
+            page = browser.new_page()
 
-        response = requests.get(url, headers=headers, timeout=10)
-        response.raise_for_status()
+            page.goto(
+                "https://www.openbank.mx/cuenta-debito-open-plus",
+                timeout=60000
+            )
 
-        html = response.text
+            page.wait_for_load_state("networkidle")
+            page.wait_for_timeout(3000)
 
-        # 🔥 Limpiar HTML
-        html_limpio = re.sub(r'<!--.*?-->', '', html)
+            contenido = page.locator("body").inner_text()
 
-        # 🔥 Buscar el texto correcto primero
-        match = re.search(
-            r'rendimiento anual fijo.*?(\d+\.\d+|\d+)\s*%',
-            html_limpio,
+            browser.close()
+
+        # 🔥 Buscar línea donde aparece "rendimiento anual fijo"
+        match_line = re.search(
+            r'(\d+\s*%.*?rendimiento anual fijo|rendimiento anual fijo.*?\d+\s*%)',
+            contenido,
             re.IGNORECASE | re.DOTALL
         )
 
-        if match:
-            tasa = float(match.group(1))
+        if match_line:
+            linea = match_line.group(0)
 
-            # 🔥 Validación extra (por si algo raro pasa)
-            if 5 < tasa < 20:
-                return round(tasa, 2)
+            # 🔥 Extraer porcentaje dentro de esa línea
+            porcentaje = re.search(r'(\d+\.\d+|\d+)\s*%', linea)
+
+            if porcentaje:
+                tasa = float(porcentaje.group(1))
+
+                # Validación
+                if 5 < tasa < 20:
+                    return round(tasa, 2)
 
     except Exception as e:
         print("Error obteniendo Openbank:", e)
