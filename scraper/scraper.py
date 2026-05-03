@@ -160,10 +160,13 @@ def obtener_tasa_didi():
 
         html = response.text
 
-        # 🔥 Buscar específicamente "Tasa fija anual 15%"
+        # 🔥 1. LIMPIAR comentarios tipo <!-- -->
+        html_limpio = re.sub(r'<!--.*?-->', '', html)
+
+        # 🔥 2. Buscar "Tasa fija anual"
         match = re.search(
             r'Tasa fija anual.*?(\d+\.\d+|\d+)\s*%',
-            html,
+            html_limpio,
             re.IGNORECASE | re.DOTALL
         )
 
