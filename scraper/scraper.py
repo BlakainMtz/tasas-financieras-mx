@@ -76,63 +76,42 @@ def obtener_tasa_bonddia():
 # FUNCIÓN NU (NUEVA)
 # =========================
 
+from playwright.sync_api import sync_playwright
+
 def obtener_tasas_nu():
-    base_url = "https://nu.com.mx/cuenta/rendimientos/"
-
     try:
-        headers = {
-            "User-Agent": "Mozilla/5.0"
-        }
+        with sync_playwright() as p:
+            browser = p.chromium.launch(headless=True)
+            page = browser.new_page()
 
-        html = requests.get(base_url, headers=headers, timeout=15).text
+            page.goto("https://nu.com.mx/cuenta/rendimientos/", timeout=60000)
 
-        # 🔥 Buscar TODOS los chunks JS
-        js_files = re.findall(r'src="(/_next/static/chunks/[^"]+\.js)"', html)
+            # Esperar a que cargue contenido dinámico
+            page.wait_for_timeout(5000)
+
+            content = page.content()
+
+            browser.close()
+
+        def extraer(pattern):
+            match = re.search(pattern, content)
+            return round(float(match.group(1)), 2) if match else "-"
 
         tasas = {
-            "a_la_vista": "-",
-            "1_semana": "-",
-            "1_mes": "-",
-            "3_meses": "-",
-            "6_meses": "-",
-            "cajita_turbo": "-"
+            "a_la_vista": extraer(r'(\d+\.\d+)\s*%\s*GAT.*?a la vista'),
+            "1_semana": extraer(r'(\d+\.\d+)\s*%\s*GAT.*?7 días'),
+            "1_mes": extraer(r'(\d+\.\d+)\s*%\s*GAT.*?28 días'),
+            "3_meses": extraer(r'(\d+\.\d+)\s*%\s*GAT.*?90 días'),
+            "6_meses": extraer(r'(\d+\.\d+)\s*%\s*GAT.*?180 días'),
+            "cajita_turbo": extraer(r'(\d+\.\d+)\s*%\s*GAT.*?Turbo')
         }
-
-        for js_path in js_files:
-            full_url = "https://nu.com.mx" + js_path
-
-            try:
-                js = requests.get(full_url, headers=headers, timeout=10).text
-
-                # 🔥 Buscar valores directamente en TODO el archivo
-                patrones = {
-                    "a_la_vista": r'dynamicYield[:"]\s*"?(\d+\.\d+)',
-                    "1_semana": r'dynamicYield7Days[:"]\s*"?(\d+\.\d+)',
-                    "1_mes": r'dynamicYield28Days[:"]\s*"?(\d+\.\d+)',
-                    "3_meses": r'dynamicYield90Days[:"]\s*"?(\d+\.\d+)',
-                    "6_meses": r'dynamicYield180Days[:"]\s*"?(\d+\.\d+)',
-                    "cajita_turbo": r'dynamicYieldTurbo[:"]\s*"?(\d+\.\d+)'
-                }
-
-                for clave, patron in patrones.items():
-                    if tasas[clave] == "-":  # solo si aún no se encontró
-                        match = re.search(patron, js)
-                        if match:
-                            tasas[clave] = round(float(match.group(1)), 2)
-
-                # 🔥 Si ya encontró todo, salimos
-                if all(v != "-" for v in tasas.values()):
-                    break
-
-            except:
-                continue
 
         print("NU tasas detectadas:", tasas)
 
         return tasas
 
     except Exception as e:
-        print("Error obteniendo tasas NU:", e)
+        print("Error con Playwright NU:", e)
 
     return {
         "a_la_vista": "-",
