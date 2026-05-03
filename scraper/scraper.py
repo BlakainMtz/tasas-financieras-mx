@@ -113,12 +113,13 @@ def obtener_tasas_nu():
 
         # 🔥 Función para extraer tasas
         def extraer(label):
-            match = re.search(
-                rf'(\d+\.\d+)\s*%.*?{label}',
-                contenido,
-                re.IGNORECASE | re.DOTALL
-            )
-            return round(float(match.group(1)), 2) if match else "-"
+    # 🔥 Buscar bloque donde aparece el label
+    bloque = re.search(
+        rf'{label}.*?(\d+\.\d+)\s*%',
+        contenido,
+        re.IGNORECASE | re.DOTALL
+    )
+    return round(float(bloque.group(1)), 2) if bloque else "-"
 
         tasas = {
             "a_la_vista": extraer("a la vista"),
