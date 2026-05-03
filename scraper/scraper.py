@@ -106,25 +106,38 @@ def obtener_tasas_nu():
             page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
             page.wait_for_timeout(3000)
 
-            # 🔥 Obtener HTML completo (MEJOR que inner_text)
-            contenido = page.content()
+            contenido = page.locator("body").inner_text()
+
+            # 🔥 Extraer TODOS los porcentajes en orden
+porcentajes = re.findall(r'(\d+\.\d+)\s*%', contenido)
+
+print("Porcentajes detectados:", porcentajes)
+
+# 🔥 Filtrar valores razonables (evita ruido tipo 100%, etc.)
+valores = [float(p) for p in porcentajes if 0 < float(p) < 20]
+
+# 🔥 Eliminar duplicados manteniendo orden
+valores_unicos = []
+for v in valores:
+    if v not in valores_unicos:
+        valores_unicos.append(v)
+
+print("Valores filtrados:", valores_unicos)
+
+# 🔥 Tomar los primeros 6 relevantes
+valores_finales = valores_unicos[:6]
+
+# 🔥 Mapear correctamente
+tasas = {
+    "a_la_vista": round(valores_finales[0], 2) if len(valores_finales) > 0 else "-",
+    "1_semana": round(valores_finales[1], 2) if len(valores_finales) > 1 else "-",
+    "1_mes": round(valores_finales[2], 2) if len(valores_finales) > 2 else "-",
+    "3_meses": round(valores_finales[3], 2) if len(valores_finales) > 3 else "-",
+    "6_meses": round(valores_finales[4], 2) if len(valores_finales) > 4 else "-",
+    "cajita_turbo": round(valores_finales[5], 2) if len(valores_finales) > 5 else "-"
+}
 
             browser.close()
-
-        # 🔥 Función mejorada (evita agarrar valores incorrectos)
-        def extraer(label):
-            pattern = rf'{label}[^%]{{0,120}}?(\d+\.\d+)\s*%'
-            match = re.search(pattern, contenido, re.IGNORECASE)
-            return round(float(match.group(1)), 2) if match else "-"
-
-        tasas = {
-            "a_la_vista": extraer("a la vista"),
-            "1_semana": extraer("7 días"),
-            "1_mes": extraer("28 días"),
-            "3_meses": extraer("90 días"),
-            "6_meses": extraer("180 días"),
-            "cajita_turbo": extraer("Turbo")
-        }
 
         print("NU tasas detectadas:", tasas)
 
