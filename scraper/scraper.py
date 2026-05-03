@@ -101,42 +101,30 @@ def obtener_tasas_nu():
                 page.mouse.wheel(0, 2000)
                 page.wait_for_timeout(800)
 
-            # Scroll final
             page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
             page.wait_for_timeout(3000)
 
             contenido = page.locator("body").inner_text()
 
-            # 🔥 TODO ESTO DEBE ESTAR INDENTADO DENTRO DEL TRY
-            porcentajes = re.findall(r'(\d+\.\d+)\s*%', contenido)
-            print("Porcentajes detectados:", porcentajes)
-
-            # 🔥 FILTRO CORRECTO
-            valores = [float(p) for p in porcentajes if 5 < float(p) < 9]
-
-            # Eliminar duplicados
-            valores_unicos = []
-            for v in valores:
-                if v not in valores_unicos:
-                    valores_unicos.append(v)
-
-            print("Valores filtrados:", valores_unicos)
-
-            if len(valores_unicos) < 4:
-                print("⚠️ Posible cambio en estructura de NU")
-
-            valores_finales = valores_unicos[:6]
-
-            tasas = {
-                "a_la_vista": round(valores_finales[0], 2) if len(valores_finales) > 0 else "-",
-                "1_semana": round(valores_finales[1], 2) if len(valores_finales) > 1 else "-",
-                "1_mes": round(valores_finales[2], 2) if len(valores_finales) > 2 else "-",
-                "3_meses": round(valores_finales[3], 2) if len(valores_finales) > 3 else "-",
-                "6_meses": round(valores_finales[4], 2) if len(valores_finales) > 4 else "-",
-                "cajita_turbo": round(valores_finales[5], 2) if len(valores_finales) > 5 else "-"
-            }
-
             browser.close()
+
+        # 🔥 FUNCIÓN INTELIGENTE (busca por contexto correcto)
+        def extraer(label):
+            match = re.search(
+                rf'{label}.*?(\d+\.\d+)\s*%',
+                contenido,
+                re.IGNORECASE | re.DOTALL
+            )
+            return round(float(match.group(1)), 2) if match else "-"
+
+        tasas = {
+            "a_la_vista": extraer(r"a la vista"),
+            "1_semana": extraer(r"7 días"),
+            "1_mes": extraer(r"28 días"),
+            "3_meses": extraer(r"90 días"),
+            "6_meses": extraer(r"180 días"),
+            "cajita_turbo": extraer(r"Turbo")
+        }
 
         print("NU tasas detectadas:", tasas)
 
