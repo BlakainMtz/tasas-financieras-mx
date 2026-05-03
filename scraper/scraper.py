@@ -183,53 +183,38 @@ def obtener_tasa_didi():
 # FUNCIÓN OPENBANK
 # =========================
 
-from playwright.sync_api import sync_playwright
-import re
-
 def obtener_tasa_openbank():
+    url = "https://www.openbank.mx/cuenta-debito-open-plus"
+
     try:
-        with sync_playwright() as p:
-            browser = p.chromium.launch(headless=True)
-            page = browser.new_page()
+        headers = {
+            "User-Agent": "Mozilla/5.0"
+        }
 
-            page.goto(
-                "https://www.openbank.mx/cuenta-debito-open-plus",
-                timeout=60000
-            )
+        response = requests.get(url, headers=headers, timeout=10)
+        response.raise_for_status()
 
-            page.wait_for_load_state("networkidle")
+        html = response.text
 
-            # 🔥 Esperar un poco más (Openbank tarda)
-            page.wait_for_timeout(5000)
+        # 🔥 Limpiar comentarios tipo <!-- -->
+        html = re.sub(r'<!--.*?-->', '', html)
 
-            contenido = page.locator("body").inner_text()
+        # 🔥 Buscar TODAS las coincidencias de "rendimiento anual fijo"
+        matches = re.findall(
+            r'(\d+\.\d+|\d+)\s*%[^%]{0,50}rendimiento anual fijo',
+            html,
+            re.IGNORECASE
+        )
 
-            browser.close()
+        print("Openbank matches:", matches)
 
-        # 🔥 Extraer TODOS los porcentajes
-        porcentajes = re.findall(r'(\d+\.\d+|\d+)\s*%', contenido)
+        # 🔥 Validar y devolver la correcta
+        for m in matches:
+            tasa = float(m)
 
-        print("Openbank porcentajes detectados:", porcentajes)
-
-        # 🔥 Convertir a float
-        valores = [float(p) for p in porcentajes]
-
-        # 🔥 Filtrar rango lógico (evita 100%, etc.)
-        valores = [v for v in valores if 5 < v < 20]
-
-        # 🔥 Eliminar duplicados
-        valores_unicos = []
-        for v in valores:
-            if v not in valores_unicos:
-                valores_unicos.append(v)
-
-        print("Openbank valores filtrados:", valores_unicos)
-
-        # 🔥 Regla clave:
-        # Queremos 13 pero NO 13.88
-        for v in valores_unicos:
-            if 12.5 <= v <= 13.5:
-                return round(v, 2)
+            # Queremos 13, no 13.88
+            if 12 <= tasa <= 14:
+                return round(tasa, 2)
 
     except Exception as e:
         print("Error obteniendo Openbank:", e)
