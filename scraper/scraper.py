@@ -124,27 +124,7 @@ def obtener_tasas_nu():
         "6_meses": "-",
         "cajita_turbo": "-"
     }
-
-        for clave, patron in patrones.items():
-            match = re.search(patron, html)
-            if match:
-                tasas[clave] = round(float(match.group(1)), 2)
-            else:
-                tasas[clave] = "-"
-
         return tasas
-
-    except Exception as e:
-        print("Error obteniendo tasas NU:", e)
-
-    return {
-        "a_la_vista": "-",
-        "1_semana": "-",
-        "1_mes": "-",
-        "3_meses": "-",
-        "6_meses": "-",
-        "cajita_turbo": "-"
-    }
 
 # =========================
 # MAIN
