@@ -46,7 +46,7 @@ def obtener_tasa(serie_id):
     return "-"
 
 # =========================
-# FUNCIÓN BONDDIA (MEJORADA)
+# FUNCIÓN BONDDIA
 # =========================
 
 def obtener_tasa_bonddia():
@@ -58,7 +58,6 @@ def obtener_tasa_bonddia():
 
         html = response.text
 
-        # Buscar específicamente "Rendimiento diario" seguido del valor
         match = re.search(
             r'Rendimiento diario.*?(\d+\.\d+)\*',
             html,
@@ -74,6 +73,55 @@ def obtener_tasa_bonddia():
     return "-"
 
 # =========================
+# FUNCIÓN NU (NUEVA)
+# =========================
+
+def obtener_tasas_nu():
+    url = "https://nu.com.mx/cuenta/rendimientos/"
+
+    try:
+        headers = {
+            "User-Agent": "Mozilla/5.0"
+        }
+
+        response = requests.get(url, headers=headers, timeout=10)
+        response.raise_for_status()
+
+        html = response.text
+
+        tasas = {}
+
+        patrones = {
+            "a_la_vista": r'dynamicYield":"(\d+\.\d+)"',
+            "1_semana": r'dynamicYield7Days":"(\d+\.\d+)"',
+            "1_mes": r'dynamicYield28Days":"(\d+\.\d+)"',
+            "3_meses": r'dynamicYield90Days":"(\d+\.\d+)"',
+            "6_meses": r'dynamicYield180Days":"(\d+\.\d+)"',
+            "cajita_turbo": r'dynamicYieldTurbo":"(\d+\.\d+)"'
+        }
+
+        for clave, patron in patrones.items():
+            match = re.search(patron, html)
+            if match:
+                tasas[clave] = round(float(match.group(1)), 2)
+            else:
+                tasas[clave] = "-"
+
+        return tasas
+
+    except Exception as e:
+        print("Error obteniendo tasas NU:", e)
+
+    return {
+        "a_la_vista": "-",
+        "1_semana": "-",
+        "1_mes": "-",
+        "3_meses": "-",
+        "6_meses": "-",
+        "cajita_turbo": "-"
+    }
+
+# =========================
 # MAIN
 # =========================
 
@@ -82,21 +130,26 @@ def main():
 
     data = {
         "last_update": datetime.now(timezone.utc).isoformat(),
+
         "CETES": {
             "1_mes": obtener_tasa(SERIES_CETES["1_mes"]),
             "3_meses": obtener_tasa(SERIES_CETES["3_meses"]),
             "6_meses": obtener_tasa(SERIES_CETES["6_meses"]),
             "1_ano": obtener_tasa(SERIES_CETES["1_ano"])
         },
+
         "BONDDIA": {
             "a_la_vista": obtener_tasa_bonddia()
-        }
+        },
+
+        # 🔥 NUEVO BLOQUE (NO AFECTA LO DEMÁS)
+        "NU": obtener_tasas_nu()
     }
 
     with open(DATA_PATH, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2, ensure_ascii=False)
 
-    print("✅ Tasas CETES y BONDDIA actualizadas correctamente")
+    print("✅ Tasas CETES, BONDDIA y NU actualizadas correctamente")
 
 if __name__ == "__main__":
     main()
