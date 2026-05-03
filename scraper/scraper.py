@@ -106,21 +106,19 @@ def obtener_tasas_nu():
             page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
             page.wait_for_timeout(3000)
 
-            contenido = page.locator("body").inner_text()
+            # 🔥 Obtener HTML completo (MEJOR que inner_text)
+            contenido = page.content()
 
             browser.close()
 
-        # 🔥 FUNCIÓN BIEN INDENTADA
+        # 🔥 Función mejorada (evita agarrar valores incorrectos)
         def extraer(label):
-            bloque = re.search(
-                rf'{label}.*?(\d+\.\d+)\s*%',
-                contenido,
-                re.IGNORECASE | re.DOTALL
-            )
-            return round(float(bloque.group(1)), 2) if bloque else "-"
+            pattern = rf'{label}[^%]{{0,120}}?(\d+\.\d+)\s*%'
+            match = re.search(pattern, contenido, re.IGNORECASE)
+            return round(float(match.group(1)), 2) if match else "-"
 
         tasas = {
-            "a_la_vista": extraer("a la vista|diaria|disponible"),
+            "a_la_vista": extraer("a la vista"),
             "1_semana": extraer("7 días"),
             "1_mes": extraer("28 días"),
             "3_meses": extraer("90 días"),
