@@ -87,28 +87,29 @@ def obtener_tasas_nu():
         # 1. Obtener HTML
         html = requests.get(f"{base_url}/cuenta/rendimientos/", headers=headers, timeout=15).text
 
-        # 2. Buscar TODOS los JS chunks (no solo uno)
-        js_files = re.findall(r'/_next/static/chunks/[^"]+\.js', html)
+        # 2. Extraer TODOS los scripts JS
+        scripts = re.findall(r'<script[^>]+src="([^"]+\.js)"', html)
 
         tasas = None
 
-        # 3. Revisar cada JS hasta encontrar el que tenga "dynamicYield"
-        for path in js_files:
-            js_url = base_url + path
-            js = requests.get(js_url, headers=headers, timeout=15).text
+        # 3. Revisar cada JS
+        for src in scripts:
+            if not src.startswith("http"):
+                js_url = base_url + src
+            else:
+                js_url = src
 
-            if "dynamicYield" in js:
-                print("JS correcto encontrado:", js_url)
+            try:
+                js = requests.get(js_url, headers=headers, timeout=10).text
 
-                # 🔥 Extraer bloque completo de values
-                match = re.search(r'values:\s*{([^}]+)}', js)
+                # 🚨 Solo procesar si contiene datos relevantes
+                if "dynamicYield" in js:
 
-                if match:
-                    bloque = match.group(1)
+                    print("JS correcto:", js_url)
 
                     def extraer(clave):
-                        m = re.search(rf'{clave}:\s*"(\d+\.\d+)"', bloque)
-                        return round(float(m.group(1)), 2) if m else "-"
+                        match = re.search(rf'{clave}:\s*"(\d+\.\d+)"', js)
+                        return round(float(match.group(1)), 2) if match else "-"
 
                     tasas = {
                         "a_la_vista": extraer("dynamicYield"),
@@ -121,11 +122,14 @@ def obtener_tasas_nu():
 
                     break
 
+            except Exception:
+                continue
+
         if tasas:
             print("NU tasas detectadas:", tasas)
             return tasas
 
-        raise Exception("No se encontró bloque de tasas en ningún JS")
+        raise Exception("No se encontraron tasas en ningún JS")
 
     except Exception as e:
         print("Error obteniendo tasas NU:", e)
