@@ -44,12 +44,12 @@ jobs:
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git add data/tasas.json
+          git add data/cetes.json
           git diff --cached --quiet || git commit -m "Actualización automática de tasas"
           git push https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }} HEAD:main
 
-      # 6. Subir tasas.json a Hostinger (FTP)
-      - name: Subir tasas.json a Hostinger
+      # 6. Subir cetes.json a Hostinger (FTP)
+      - name: Subir cetes.json a Hostinger
         uses: SamKirkland/FTP-Deploy-Action@v4.3.4
         with:
           server: ${{ secrets.FTP_SERVER }}
@@ -63,4 +63,4 @@ jobs:
         run: |
           curl -X POST "https://misfinanzasdigitales.com/wp-json/tasas/v1/update" \
           -H "Content-Type: application/json" \
-          -d @data/tasas.json
+          -d @data/cetes.json
