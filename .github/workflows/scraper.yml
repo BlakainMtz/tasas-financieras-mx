@@ -3,7 +3,7 @@ name: Actualizar tasas
 on:
   schedule:
     # Todos los días a las 15:00 UTC (9:00 AM hora de México)
-    - cron: "0 15 * * *"
+    - cron: "10 18 * * *"
   workflow_dispatch:
 
 permissions:
