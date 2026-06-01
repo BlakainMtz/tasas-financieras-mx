@@ -1,5 +1,5 @@
 {
-  "last_update": "2026-05-31T19:40:26.376870+00:00",
+  "last_update": "2026-06-01T21:44:01.060158+00:00",
   "CETES": {
     "1_mes": 6.38,
     "3_meses": 6.49,
@@ -21,6 +21,6 @@
     "a_la_vista": 15.0
   },
   "OPENBANK": {
-    "a_la_vista": null
+    "a_la_vista": 13.0
   }
 }
