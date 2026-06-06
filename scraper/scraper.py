@@ -105,28 +105,50 @@ def obtener_tasa_didi():
 # FUNCIÓN OPENBANK (JSON endpoint)
 # =========================
 def obtener_tasa_openbank(browser=None):
-    # Intento 1: JSON endpoint (más confiable cuando funciona)
     url_json = "https://www.openbank.mx/page-data/cuenta-debito-open-plus/page-data.json"
-    try:
-        response = requests.get(url_json, headers=UA, timeout=10)
-        print(f"Openbank JSON status: {response.status_code}, length: {len(response.text)}")
-        response.raise_for_status()
-        text = response.text
-        porcentajes = re.findall(r'(\d+(?:\.\d+)?)\s*%', text)
-        valores = [float(p) for p in porcentajes if 5 <= float(p) <= 20]
-        valores = list(dict.fromkeys(valores))
-        print("Openbank JSON valores:", valores)
-        if 13.0 in valores:
-            return 13.0
-        if valores:
-            return round(max(valores), 2)
-    except Exception as e:
-        print("Error Openbank JSON:", e)
+    url_html = "https://www.openbank.mx/cuenta-debito-open-plus"
+    headers_ob = {
+        "User-Agent": UA["User-Agent"],
+        "Accept": "application/json, text/html, */*",
+        "Accept-Language": "es-MX,es;q=0.9,en;q=0.8",
+        "Referer": "https://www.openbank.mx/",
+        "DNT": "1",
+    }
+
+    # Intento 1: JSON endpoint con parsing estructurado (Gatsby page-data)
+    for intento in range(3):
+        try:
+            response = requests.get(url_json, headers=headers_ob, timeout=15)
+            print(f"Openbank JSON intento {intento+1}: status {response.status_code}")
+            if response.status_code == 403:
+                import time
+                time.sleep(2)
+                continue
+            response.raise_for_status()
+            # Parsear JSON estructurado
+            data = response.json()
+            content_str = json.dumps(data)
+            # Buscar el rendimiento principal en el texto del JSON
+            porcentajes = re.findall(r'(\d+(?:\.\d+)?)\s*%\s*de\s*rendimiento', content_str)
+            valores = [float(p) for p in porcentajes if 5 <= float(p) <= 20]
+            valores = list(dict.fromkeys(valores))
+            print("Openbank JSON rendimiento valores:", valores)
+            if valores:
+                return max(valores)
+            # Fallback: buscar todos los porcentajes en rango
+            porcentajes2 = re.findall(r'(\d+(?:\.\d+)?)\s*%', content_str)
+            valores2 = [float(p) for p in porcentajes2 if 10 <= float(p) <= 16]
+            valores2 = list(dict.fromkeys(valores2))
+            print("Openbank JSON todos % (10-16):", valores2)
+            if valores2:
+                return max(valores2)
+        except Exception as e:
+            print(f"Error Openbank JSON intento {intento+1}:", e)
 
     # Intento 2: página HTML directa
-    url_html = "https://www.openbank.mx/cuenta-debito-open-plus"
     try:
-        response = requests.get(url_html, headers=UA, timeout=10)
+        response = requests.get(url_html, headers=headers_ob, timeout=15)
+        print(f"Openbank HTML status: {response.status_code}")
         response.raise_for_status()
         match = re.search(r'hasta\s+(\d+(?:\.\d+)?)\s*%\s*de\s*rendimiento', response.text, re.IGNORECASE)
         if match:
@@ -151,26 +173,19 @@ def obtener_tasa_openbank(browser=None):
             page.wait_for_timeout(3000)
             contenido = page.locator("body").inner_text()
             print(f"Openbank Playwright texto: {len(contenido)} chars")
-            print("Openbank Playwright preview:", repr(contenido[:500]))
             page.close()
-            # Buscar "hasta X% de rendimiento"
             match = re.search(r'hasta\s+(\d+(?:\.\d+)?)\s*%\s*de\s*rendimiento', contenido, re.IGNORECASE)
             if match:
                 val = float(match.group(1))
                 if 5 <= val <= 20:
-                    print(f"Openbank Playwright: {val}%")
                     return val
-            # Buscar "X% de rendimiento" o "rendimiento anual" con número
             match2 = re.search(r'(\d+(?:\.\d+)?)\s*%\s*de\s*rendimiento', contenido, re.IGNORECASE)
             if match2:
                 val = float(match2.group(1))
                 if 5 <= val <= 20:
-                    print(f"Openbank Playwright (rendimiento): {val}%")
                     return val
-            # Buscar porcentajes cerca de "rendimiento" o "tasa"
             matches = re.findall(r'(\d+(?:\.\d+)?)\s*%', contenido)
             valores = [float(m) for m in matches if 10 <= float(m) <= 15]
-            print("Openbank Playwright todos %:", valores[:10])
             if valores:
                 return max(valores)
         except Exception as e:
