@@ -103,7 +103,7 @@ def obtener_tasa_didi():
 # =========================
 # FUNCIÓN OPENBANK (JSON endpoint)
 # =========================
-def obtener_tasa_openbank():
+def obtener_tasa_openbank(browser=None):
     # Intento 1: JSON endpoint (más confiable cuando funciona)
     url_json = "https://www.openbank.mx/page-data/cuenta-debito-open-plus/page-data.json"
     try:
@@ -126,14 +126,12 @@ def obtener_tasa_openbank():
     try:
         response = requests.get(url_html, headers=UA, timeout=10)
         response.raise_for_status()
-        # Buscar "hasta X% de rendimiento" o "X% de rendimiento anual"
         match = re.search(r'hasta\s+(\d+(?:\.\d+)?)\s*%\s*de\s*rendimiento', response.text, re.IGNORECASE)
         if match:
             val = float(match.group(1))
             if 5 <= val <= 20:
                 print(f"Openbank HTML: {val}%")
                 return val
-        # Fallback: buscar porcentajes en contexto de tasa/rendimiento
         matches = re.findall(r'(\d+(?:\.\d+)?)\s*%\s*(?:de\s*rendimiento|anual)', response.text, re.IGNORECASE)
         valores = [float(m) for m in matches if 5 <= float(m) <= 20]
         print("Openbank HTML valores:", valores)
@@ -141,6 +139,31 @@ def obtener_tasa_openbank():
             return max(valores)
     except Exception as e:
         print("Error Openbank HTML:", e)
+
+    # Intento 3: Playwright
+    if browser:
+        try:
+            page = browser.new_page()
+            page.goto(url_html, timeout=60000)
+            page.wait_for_load_state("networkidle")
+            page.wait_for_timeout(3000)
+            contenido = page.locator("body").inner_text()
+            page.close()
+            # Buscar "hasta X% de rendimiento" o "X% de rendimiento"
+            match = re.search(r'hasta\s+(\d+(?:\.\d+)?)\s*%\s*de\s*rendimiento', contenido, re.IGNORECASE)
+            if match:
+                val = float(match.group(1))
+                if 5 <= val <= 20:
+                    print(f"Openbank Playwright: {val}%")
+                    return val
+            # Buscar porcentajes en contexto
+            matches = re.findall(r'(\d+(?:\.\d+)?)\s*%\s*(?:de\s*rendimiento|anual)', contenido, re.IGNORECASE)
+            valores = [float(m) for m in matches if 5 <= float(m) <= 20]
+            print("Openbank Playwright valores:", valores)
+            if valores:
+                return max(valores)
+        except Exception as e:
+            print("Error Openbank Playwright:", e)
     return None
 
 # =========================
@@ -265,8 +288,44 @@ def obtener_tasa_mifel():
 # FUNCIÓN SUPERTASAS (scraping HTML)
 # Las tasas están directamente en el HTML
 # =========================
-def obtener_tasas_supertasas():
+def _parsear_texto_supertasas(texto):
+    """Parsea tasas de Supertasas desde texto plano (renderizado o tag-stripped)."""
+    # Buscar pares: "X.XX%" seguido (con posible whitespace) de "Plazo de Y días" o "A la vista"
+    pares = re.findall(
+        r'(\d+\.\d+)\s*%\s*((?:Plazo de \d+ d[ií]as(?:\s*[\(,][^)]*\))?)|(?:A la vista))',
+        texto, re.IGNORECASE
+    )
+    print("Supertasas pares encontrados:", pares)
+
+    tasas_map = {}
+    for tasa_str, label in pares:
+        label_lower = label.lower()
+        tasa = float(tasa_str)
+        if 3 <= tasa <= 15:
+            if 'a la vista' in label_lower:
+                tasas_map.setdefault('a_la_vista', tasa)
+            elif 'plazo de 28' in label_lower:
+                tasas_map.setdefault('1_mes', tasa)
+            elif 'plazo de 91' in label_lower:
+                tasas_map.setdefault('3_meses', tasa)
+            elif 'plazo de 182' in label_lower:
+                tasas_map.setdefault('6_meses', tasa)
+            elif 'plazo de 364' in label_lower and 'interes' not in label_lower:
+                tasas_map.setdefault('1_ano', tasa)
+
+    return {
+        "a_la_vista": tasas_map.get('a_la_vista'),
+        "1_mes": tasas_map.get('1_mes'),
+        "3_meses": tasas_map.get('3_meses'),
+        "6_meses": tasas_map.get('6_meses'),
+        "1_ano": tasas_map.get('1_ano')
+    }
+
+def obtener_tasas_supertasas(browser=None):
     url = "https://supertasas.com/"
+    resultado_vacio = {"a_la_vista": None, "1_mes": None, "3_meses": None, "6_meses": None, "1_ano": None}
+
+    # Intento 1: requests + strip tags
     try:
         response = requests.get(url, headers=UA, timeout=10)
         response.raise_for_status()
@@ -274,45 +333,37 @@ def obtener_tasas_supertasas():
 
         # Limpiar HTML: quitar tags para obtener texto plano
         texto = re.sub(r'<[^>]+>', '\n', html)
-        texto = re.sub(r'&[^;]+;', ' ', texto)  # quitar entidades HTML
+        texto = re.sub(r'&[^;]+;', ' ', texto)
         texto = re.sub(r'\n{2,}', '\n', texto)
 
-        # Las tasas publicitadas aparecen como "X.XX%" seguido de "Plazo de Y días"
-        # En HTML limpio puede haber \n entre el número, el % y el plazo
-        pares_principal = re.findall(
-            r'(\d+\.\d+)\s*\n?\s*%\s*\n?\s*((?:Plazo de \d+ d[ií]as(?:\s*[\(,].*?)?)|(?:A la vista))',
-            texto, re.IGNORECASE
-        )
-        print("Supertasas pares principal:", pares_principal)
-
-        tasas_map = {}
-        for tasa_str, label in pares_principal:
-            label_lower = label.lower()
-            tasa = float(tasa_str)
-            if 3 <= tasa <= 15:
-                if 'a la vista' in label_lower:
-                    tasas_map.setdefault('a_la_vista', tasa)
-                elif 'plazo de 28' in label_lower:
-                    tasas_map.setdefault('1_mes', tasa)
-                elif 'plazo de 91' in label_lower:
-                    tasas_map.setdefault('3_meses', tasa)
-                elif 'plazo de 182' in label_lower:
-                    tasas_map.setdefault('6_meses', tasa)
-                elif 'plazo de 364' in label_lower and 'interes' not in label_lower:
-                    tasas_map.setdefault('1_ano', tasa)
-
-        tasas = {
-            "a_la_vista": tasas_map.get('a_la_vista'),
-            "1_mes": tasas_map.get('1_mes'),
-            "3_meses": tasas_map.get('3_meses'),
-            "6_meses": tasas_map.get('6_meses'),
-            "1_ano": tasas_map.get('1_ano')
-        }
-        print("Supertasas detectadas:", tasas)
-        return tasas
+        tasas = _parsear_texto_supertasas(texto)
+        if any(v is not None for v in tasas.values()):
+            print("Supertasas (requests) detectadas:", tasas)
+            return tasas
+        print("Supertasas requests: no se encontraron tasas, probando Playwright...")
     except Exception as e:
-        print("Error Supertasas:", e)
-    return {"a_la_vista": None, "1_mes": None, "3_meses": None, "6_meses": None, "1_ano": None}
+        print("Error Supertasas requests:", e)
+
+    # Intento 2: Playwright (texto renderizado limpio)
+    if browser:
+        try:
+            page = browser.new_page()
+            page.goto(url, timeout=60000)
+            page.wait_for_load_state("networkidle")
+            page.wait_for_timeout(3000)
+            for _ in range(5):
+                page.mouse.wheel(0, 1500)
+                page.wait_for_timeout(800)
+            contenido = page.locator("body").inner_text()
+            page.close()
+            print("Supertasas Playwright texto:", len(contenido), "chars")
+            tasas = _parsear_texto_supertasas(contenido)
+            print("Supertasas (Playwright) detectadas:", tasas)
+            return tasas
+        except Exception as e:
+            print("Error Supertasas Playwright:", e)
+
+    return resultado_vacio
 
 # =========================
 # FUNCIÓN FINSUS (scraping HTML)
@@ -321,11 +372,12 @@ def obtener_tasas_supertasas():
 def obtener_tasas_finsus(browser=None):
     url = "https://finsus.mx/personas/inversiones"
 
-    def parsear_finsus(html):
-        """Intenta extraer pares monto-tasa del HTML/texto de Finsus."""
-        pares = re.findall(r'\$([\d,]+\.\d+)\s*\n\s*(\d+\.\d+)%', html)
+    def parsear_finsus(texto):
+        """Intenta extraer pares monto-tasa del texto de Finsus."""
+        # Más flexible con whitespace: permite múltiples newlines entre monto y tasa
+        pares = re.findall(r'\$([\d,]+\.\d+)\s+(\d+\.\d+)\s*%', texto)
         if not pares:
-            pares = re.findall(r'\$([\d,]+\.\d+)\s+(\d+\.\d+)%', html)
+            pares = re.findall(r'\$([\d,]+(?:\.\d+)?)\s+(\d+\.\d+)\s*%', texto)
         return pares
 
     # Intento 1: requests
@@ -352,6 +404,10 @@ def obtener_tasas_finsus(browser=None):
                 page.wait_for_timeout(800)
             html = page.locator("body").inner_text()
             print("Finsus usando Playwright, texto:", len(html), "chars")
+            # Debug: mostrar fragmento del simulador
+            sim_idx = html.find('$')
+            if sim_idx > 0:
+                print("Finsus Playwright muestra $:", repr(html[sim_idx:sim_idx+200]))
             page.close()
             pares = parsear_finsus(html)
             print(f"Finsus Playwright: {len(pares)} pares encontrados")
@@ -386,18 +442,43 @@ def obtener_tasas_finsus(browser=None):
                     break
 
         tasas_por_plazo = {}
-        for monto_str, tasa_str in pares:
-            monto = float(monto_str.replace(',', ''))
-            tasa = float(tasa_str)
-            if tasa < 3 or tasa > 15:
-                continue
-            # Calcular plazo en días
-            plazo_calc = round(monto * 360 * 100 / (principal * tasa))
-            # Redondear a plazos conocidos de Finsus
-            plazos_conocidos = [0, 7, 30, 90, 180, 360, 540, 600, 720, 1080, 1440, 1800]
-            plazo_cercano = min(plazos_conocidos, key=lambda p: abs(p - plazo_calc))
-            if abs(plazo_cercano - plazo_calc) <= 5:
-                tasas_por_plazo[plazo_cercano] = tasa
+        if pares:
+            for monto_str, tasa_str in pares:
+                monto = float(monto_str.replace(',', ''))
+                tasa = float(tasa_str)
+                if tasa < 3 or tasa > 15:
+                    continue
+                # Calcular plazo en días
+                plazo_calc = round(monto * 360 * 100 / (principal * tasa))
+                # Redondear a plazos conocidos de Finsus
+                plazos_conocidos = [0, 7, 30, 90, 180, 360, 540, 600, 720, 1080, 1440, 1800]
+                plazo_cercano = min(plazos_conocidos, key=lambda p: abs(p - plazo_calc))
+                if abs(plazo_cercano - plazo_calc) <= 5:
+                    tasas_por_plazo[plazo_cercano] = tasa
+        else:
+            # Fallback: extraer tasas directamente del texto del simulador
+            # El simulador muestra tasas en orden de plazo corto a largo:
+            # 7d, 30d, 90d, 180d, 360d, 540d, ...
+            # Buscar la sección del simulador y extraer todas las tasas
+            plazos_orden = [7, 30, 90, 180, 360, 540, 600, 720, 1080, 1440, 1800]
+            # Buscar todas las tasas que aparecen como "X.XX%" en el rango esperado
+            todas_tasas = re.findall(r'(?<!\d)(\d+\.\d+)\s*%', html)
+            tasas_validas = [(i, float(t)) for i, t in enumerate(todas_tasas) if 5 <= float(t) <= 12]
+            print(f"Finsus fallback: {len(tasas_validas)} tasas válidas encontradas:", tasas_validas[:15])
+
+            # Si hay exactamente tantas tasas como plazos (o más), intentar mapear
+            # Buscar la secuencia de tasas consecutivas que corresponden al simulador
+            if len(tasas_validas) >= 5:
+                # Tomar las primeras 11 tasas únicas (orden del simulador)
+                tasas_seq = []
+                for _, t in tasas_validas:
+                    if not tasas_seq or t != tasas_seq[-1]:
+                        tasas_seq.append(t)
+                    if len(tasas_seq) >= len(plazos_orden):
+                        break
+                for i, plazo in enumerate(plazos_orden):
+                    if i < len(tasas_seq):
+                        tasas_por_plazo[plazo] = tasas_seq[i]
 
         print("Finsus tasas por plazo:", tasas_por_plazo)
 
@@ -597,11 +678,10 @@ def main():
         revolut_tasa = obtener_tasa_revolut(browser)
         klar_tasas = obtener_tasa_klar(browser)
         finsus_tasas = obtener_tasas_finsus(browser)
+        supertasas = obtener_tasas_supertasas(browser)
+        openbank_tasa = obtener_tasa_openbank(browser)
 
         browser.close()
-
-    # Scrapers sin Playwright (requests)
-    supertasas = obtener_tasas_supertasas()
 
     data = {
         "last_update": datetime.now(timezone.utc).isoformat(),
@@ -619,7 +699,7 @@ def main():
             "a_la_vista": obtener_tasa_didi()
         },
         "OPENBANK": {
-            "a_la_vista": obtener_tasa_openbank()
+            "a_la_vista": openbank_tasa
         },
         "MERCADOPAGO": {
             "a_la_vista": mp_tasa
