@@ -274,44 +274,19 @@ def obtener_tasas_supertasas():
 
         # Limpiar HTML: quitar tags para obtener texto plano
         texto = re.sub(r'<[^>]+>', '\n', html)
+        texto = re.sub(r'&[^;]+;', ' ', texto)  # quitar entidades HTML
         texto = re.sub(r'\n{2,}', '\n', texto)
 
-        # Approach 1: buscar "X.XX% ... Plazo de Y días" (tasa antes del plazo)
-        # En la sección principal de la página
+        # Las tasas publicitadas aparecen como "X.XX%" seguido de "Plazo de Y días"
+        # En HTML limpio puede haber \n entre el número, el % y el plazo
         pares_principal = re.findall(
-            r'(\d+\.\d+)\s*%\s*\n?\s*((?:Plazo de \d+ d[ií]as(?:\s*[\(,].*?)?)|(?:A la vista))',
+            r'(\d+\.\d+)\s*\n?\s*%\s*\n?\s*((?:Plazo de \d+ d[ií]as(?:\s*[\(,].*?)?)|(?:A la vista))',
             texto, re.IGNORECASE
         )
         print("Supertasas pares principal:", pares_principal)
 
-        # Approach 2 (fallback): buscar "GAT nominal: X.XX%" después de "Plazo de Y días"
-        gat_pares = re.findall(
-            r'((?:Plazo de \d+ d[ií]as(?:[^G]{0,60})?)|(?:Inversi[oó]n a la vista))\s*'
-            r'GAT nominal[:\s]*(\d+\.\d+)\s*%',
-            texto, re.IGNORECASE
-        )
-        print("Supertasas GAT pares:", gat_pares)
-
         tasas_map = {}
-
-        # Primero intentar con pares principales (tasas publicitadas)
         for tasa_str, label in pares_principal:
-            label_lower = label.lower()
-            tasa = float(tasa_str)
-            if 3 <= tasa <= 15:
-                if 'a la vista' in label_lower:
-                    tasas_map.setdefault('a_la_vista', tasa)
-                elif 'plazo de 28' in label_lower:
-                    tasas_map.setdefault('1_mes', tasa)
-                elif 'plazo de 91' in label_lower:
-                    tasas_map.setdefault('3_meses', tasa)
-                elif 'plazo de 182' in label_lower:
-                    tasas_map.setdefault('6_meses', tasa)
-                elif 'plazo de 364' in label_lower and 'interes' not in label_lower:
-                    tasas_map.setdefault('1_ano', tasa)
-
-        # Completar con GAT si faltan
-        for label, tasa_str in gat_pares:
             label_lower = label.lower()
             tasa = float(tasa_str)
             if 3 <= tasa <= 15:
@@ -435,8 +410,33 @@ def obtener_tasas_finsus(browser=None):
         elif meta_match:
             tasa_principal = round(float(meta_match.group(1)), 2)
 
+        # Obtener tasa a la vista desde la página de cuenta/ahorro
+        tasa_vista = None
+        try:
+            resp_cuenta = requests.get("https://finsus.mx/personas/cuenta", headers=UA, timeout=10)
+            resp_cuenta.raise_for_status()
+            cuenta_text = resp_cuenta.text
+            # Múltiples patrones para capturar la tasa desde HTML estático o meta tags
+            patrones_vista = [
+                r'[Gg]enera\s*(\d+\.\d+)\s*%',
+                r'tasa del (\d+\.\d+)\s*%',
+                r'[Rr]endimiento[^%]*?(\d+\.\d+)\s*%',
+                r'con\s+(\d+\.\d+)\s*%\s*(?:\*?\s*de\s*)?rendimiento',
+                r'Finsus\+?\s*(?:con\s+)?(\d+\.\d+)\s*%',
+            ]
+            for patron in patrones_vista:
+                vista_match = re.search(patron, cuenta_text, re.IGNORECASE)
+                if vista_match:
+                    val = float(vista_match.group(1))
+                    if 3 <= val <= 15:
+                        tasa_vista = round(val, 2)
+                        break
+            print(f"Finsus cuenta a la vista: {tasa_vista}%")
+        except Exception as e:
+            print("Error Finsus cuenta:", e)
+
         tasas = {
-            "a_la_vista": None,  # Finsus no ofrece a la vista
+            "a_la_vista": tasa_vista,
             "7_dias": tasas_por_plazo.get(7),
             "1_mes": tasas_por_plazo.get(30),
             "3_meses": tasas_por_plazo.get(90),
@@ -485,14 +485,9 @@ def obtener_tasa_klar(browser=None):
                 if 8 <= val <= 16:
                     tasa_max = val
 
-        # Extraer tasa de Cuenta (a la vista)
-        # La tabla muestra "Cuenta\nX%" para Klar regular
-        tasa_cuenta = None
-        cuenta_match = re.search(r'Cuenta\s*\n\s*(\d+(?:\.\d+)?)\s*%', texto)
-        if cuenta_match:
-            tasa_cuenta = float(cuenta_match.group(1))
-
-        # Extraer tasas por plazo de la tabla (Klar regular)
+        # Extraer tasas por plazo — usar findall para obtener TODAS las ocurrencias
+        # La tabla tiene dos secciones: Klar regular (primera) y Klar Plus/Platino (segunda)
+        # Siempre tomamos la MAYOR tasa (Plus/Platino)
         tasas_plazo = {}
         plazo_patterns = [
             (r'Inversión Fija 7 días\s*\n\s*(\d+\.\d+)%', '7_dias'),
@@ -502,17 +497,26 @@ def obtener_tasa_klar(browser=None):
             (r'Inversión Fija 365 días\s*\n\s*(\d+\.\d+)%', '1_ano'),
         ]
         for patron, clave in plazo_patterns:
-            m = re.search(patron, texto)
-            if m:
-                tasas_plazo[clave] = float(m.group(1))
+            matches = re.findall(patron, texto)
+            if matches:
+                # Tomar la más alta (Plus/Platino)
+                tasas_plazo[clave] = max(float(m) for m in matches)
 
-        # Extraer tasa flexible
-        flex_match = re.search(r'Inversión Flexible\s*\n\s*(\d+(?:\.\d+)?)\s*%', texto)
-        tasa_flexible = float(flex_match.group(1)) if flex_match else None
+        # Tasa flexible: tomar la mayor (Plus = 8%)
+        flex_matches = re.findall(r'Inversión Flexible\s*\n\s*(\d+(?:\.\d+)?)\s*%', texto)
+        if not flex_matches:
+            flex_matches = re.findall(r'Inversiones\s*\n\s*(\d+(?:\.\d+)?)\s*%', texto)
+        tasa_flexible = max(float(m) for m in flex_matches) if flex_matches else None
 
+        # Cuenta: tomar la mayor (Plus = 5%)
+        cuenta_matches = re.findall(r'Cuenta\s*\n\s*(\d+(?:\.\d+)?)\s*%', texto)
+        tasa_cuenta = max(float(m) for m in cuenta_matches) if cuenta_matches else None
+
+        # a_la_vista = tasa_max (Inversión Max 15%) ya que es disponible y el user quiere la mayor
         resultado = {
-            "a_la_vista": tasa_cuenta,
+            "a_la_vista": tasa_max,
             "tasa_max": tasa_max,
+            "cuenta": tasa_cuenta,
             "flexible": tasa_flexible,
             **tasas_plazo
         }
@@ -544,9 +548,7 @@ def obtener_tasa_klar(browser=None):
                 if hasta_match and 8 <= float(hasta_match.group(1)) <= 16:
                     tasa_max = float(hasta_match.group(1))
 
-            cuenta_match = re.search(r'Cuenta\s*\n\s*(\d+(?:\.\d+)?)\s*%', contenido)
-            tasa_cuenta = float(cuenta_match.group(1)) if cuenta_match else None
-
+            # Tomar siempre las tasas Plus/Platino (mayor)
             tasas_plazo = {}
             plazo_patterns = [
                 (r'Inversión Fija 7 días\s*\n\s*(\d+\.\d+)%', '7_dias'),
@@ -556,15 +558,15 @@ def obtener_tasa_klar(browser=None):
                 (r'Inversión Fija 365 días\s*\n\s*(\d+\.\d+)%', '1_ano'),
             ]
             for patron, clave in plazo_patterns:
-                m = re.search(patron, contenido)
-                if m:
-                    tasas_plazo[clave] = float(m.group(1))
+                matches = re.findall(patron, contenido)
+                if matches:
+                    tasas_plazo[clave] = max(float(m) for m in matches)
 
-            flex_match = re.search(r'Inversión Flexible\s*\n\s*(\d+(?:\.\d+)?)\s*%', contenido)
-            tasa_flexible = float(flex_match.group(1)) if flex_match else None
+            flex_matches = re.findall(r'(?:Inversión Flexible|Inversiones)\s*\n\s*(\d+(?:\.\d+)?)\s*%', contenido)
+            tasa_flexible = max(float(m) for m in flex_matches) if flex_matches else None
 
             resultado = {
-                "a_la_vista": tasa_cuenta,
+                "a_la_vista": tasa_max,
                 "tasa_max": tasa_max,
                 "flexible": tasa_flexible,
                 **tasas_plazo
