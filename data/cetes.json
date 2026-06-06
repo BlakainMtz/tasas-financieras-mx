@@ -1,5 +1,5 @@
 {
-  "last_update": "2026-06-06T05:53:06.903006+00:00",
+  "last_update": "2026-06-06T13:19:37.037466+00:00",
   "CETES": {
     "1_mes": 6.36,
     "3_meses": 6.56,
@@ -11,11 +11,11 @@
   },
   "NU": {
     "a_la_vista": null,
-    "1_semana": 6.55,
-    "1_mes": 6.6,
-    "3_meses": 6.7,
-    "6_meses": 6.8,
-    "cajita_turbo": 13.0
+    "1_semana": null,
+    "1_mes": null,
+    "3_meses": null,
+    "6_meses": null,
+    "cajita_turbo": null
   },
   "DIDICUENTA": {
     "a_la_vista": 15.0
@@ -33,14 +33,14 @@
     "a_la_vista": 10.0
   },
   "SUPERTASAS": {
-    "a_la_vista": 6.7,
-    "1_mes": 6.8,
-    "3_meses": 6.98,
-    "6_meses": 8.06,
-    "1_ano": 8.8
+    "a_la_vista": null,
+    "1_mes": null,
+    "3_meses": null,
+    "6_meses": null,
+    "1_ano": null
   },
   "FINSUS": {
-    "a_la_vista": null,
+    "a_la_vista": 7.08,
     "7_dias": null,
     "1_mes": null,
     "3_meses": null,
@@ -49,13 +49,14 @@
     "tasa_principal": 9.09
   },
   "KLAR": {
-    "a_la_vista": 3.0,
+    "a_la_vista": 15.0,
     "tasa_max": 15.0,
+    "cuenta": 5.0,
     "flexible": 6.0,
-    "7_dias": 6.1,
-    "1_mes": 6.2,
-    "3_meses": 6.3,
-    "6_meses": 6.4,
-    "1_ano": 6.5
+    "7_dias": 8.1,
+    "1_mes": 8.2,
+    "3_meses": 8.3,
+    "6_meses": 8.4,
+    "1_ano": 8.5
   }
 }
