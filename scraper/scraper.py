@@ -132,54 +132,81 @@ def obtener_tasa_openbank():
     return None
 
 # =========================
-# FUNCIÓN MERCADO PAGO (Playwright)
+# FUNCIÓN MERCADO PAGO (requests + Playwright fallback)
 # Tasa más alta condicionada
 # =========================
-def obtener_tasa_mercadopago(browser):
+def obtener_tasa_mercadopago(browser=None):
+    # Intento 1: requests con página de rendimientos
     try:
-        page = browser.new_page()
-        page.goto("https://www.mercadopago.com.mx/cuenta", timeout=60000)
-        page.wait_for_load_state("networkidle")
-        page.wait_for_timeout(3000)
-        for _ in range(5):
-            page.mouse.wheel(0, 1500)
-            page.wait_for_timeout(800)
-        contenido = page.locator("body").inner_text()
-        page.close()
-
-        # Buscar la tasa más alta mencionada (ej: "hasta 15%", "13%", etc.)
-        matches = re.findall(r'(\d+)\s*%', contenido)
-        valores = [int(m) for m in matches if 5 <= int(m) <= 20]
-        print("Mercado Pago valores encontrados:", valores)
+        response = requests.get("https://www.mercadopago.com.mx/cuenta", headers=UA, timeout=10)
+        response.raise_for_status()
+        # Buscar patrón "hasta X%" o "X% anual"
+        matches = re.findall(r'(\d+)\s*%', response.text)
+        valores = [int(m) for m in matches if 7 <= int(m) <= 20]
+        print("Mercado Pago (requests) valores:", valores)
         if valores:
             return float(max(valores))
     except Exception as e:
-        print("Error Mercado Pago:", e)
+        print("Mercado Pago requests falló:", e)
+
+    # Intento 2: Playwright
+    if browser:
+        try:
+            page = browser.new_page()
+            page.goto("https://www.mercadopago.com.mx/cuenta", timeout=60000)
+            page.wait_for_load_state("networkidle")
+            page.wait_for_timeout(5000)
+            for _ in range(8):
+                page.mouse.wheel(0, 1500)
+                page.wait_for_timeout(1000)
+            contenido = page.locator("body").inner_text()
+            print("Mercado Pago texto extraído (preview):", contenido[:500])
+            page.close()
+            matches = re.findall(r'(\d+)\s*%', contenido)
+            valores = [int(m) for m in matches if 7 <= int(m) <= 20]
+            print("Mercado Pago (Playwright) valores:", valores)
+            if valores:
+                return float(max(valores))
+        except Exception as e:
+            print("Error Mercado Pago Playwright:", e)
     return None
 
 # =========================
-# FUNCIÓN REVOLUT (Playwright)
+# FUNCIÓN REVOLUT (requests + Playwright fallback)
 # =========================
-def obtener_tasa_revolut(browser):
+def obtener_tasa_revolut(browser=None):
+    # Intento 1: requests
     try:
-        page = browser.new_page()
-        page.goto("https://www.revolut.com/es-MX/instant-access-savings/", timeout=60000)
-        page.wait_for_load_state("networkidle")
-        page.wait_for_timeout(3000)
-        for _ in range(5):
-            page.mouse.wheel(0, 1500)
-            page.wait_for_timeout(800)
-        contenido = page.locator("body").inner_text()
-        page.close()
-
-        # Buscar "15%" o similar en contexto de rendimiento
-        matches = re.findall(r'(\d+(?:\.\d+)?)\s*%', contenido)
-        valores = [float(m) for m in matches if 5 <= float(m) <= 20]
-        print("Revolut valores encontrados:", valores)
+        response = requests.get("https://www.revolut.com/es-MX/instant-access-savings/", headers=UA, timeout=10)
+        response.raise_for_status()
+        matches = re.findall(r'(\d+(?:\.\d+)?)\s*%', response.text)
+        valores = [float(m) for m in matches if 7 <= float(m) <= 20]
+        print("Revolut (requests) valores:", valores)
         if valores:
             return max(valores)
     except Exception as e:
-        print("Error Revolut:", e)
+        print("Revolut requests falló:", e)
+
+    # Intento 2: Playwright
+    if browser:
+        try:
+            page = browser.new_page()
+            page.goto("https://www.revolut.com/es-MX/instant-access-savings/", timeout=60000)
+            page.wait_for_load_state("networkidle")
+            page.wait_for_timeout(5000)
+            for _ in range(8):
+                page.mouse.wheel(0, 1500)
+                page.wait_for_timeout(1000)
+            contenido = page.locator("body").inner_text()
+            print("Revolut texto extraído (preview):", contenido[:500])
+            page.close()
+            matches = re.findall(r'(\d+(?:\.\d+)?)\s*%', contenido)
+            valores = [float(m) for m in matches if 7 <= float(m) <= 20]
+            print("Revolut (Playwright) valores:", valores)
+            if valores:
+                return max(valores)
+        except Exception as e:
+            print("Error Revolut Playwright:", e)
     return None
 
 # =========================
@@ -228,20 +255,29 @@ def obtener_tasas_supertasas():
         response.raise_for_status()
         html = response.text
 
+        # El HTML muestra: "8.80% Plazo de 364 días", "7.90% Plazo de 182 días", etc.
+        # Patrón: porcentaje SEGUIDO del label del plazo
         def extraer_tasa(label):
-            # Buscar patrón: "Plazo de X días" seguido de un porcentaje, o "A la vista"
-            pattern = rf'{label}.*?(\d+\.\d+)\s*%'
+            pattern = rf'(\d+\.\d+)\s*%\s*{label}'
+            match = re.search(pattern, html, re.IGNORECASE | re.DOTALL)
+            if match:
+                return round(float(match.group(1)), 2)
+            return None
+
+        # También intentar patrón inverso: label SEGUIDO de porcentaje (GAT section)
+        def extraer_tasa_gat(label):
+            pattern = rf'{label}.*?GAT nominal:\s*(\d+\.\d+)%'
             match = re.search(pattern, html, re.IGNORECASE | re.DOTALL)
             if match:
                 return round(float(match.group(1)), 2)
             return None
 
         tasas = {
-            "a_la_vista": extraer_tasa(r'a la vista'),
-            "1_mes": extraer_tasa(r'Plazo de 28 d'),
-            "3_meses": extraer_tasa(r'Plazo de 91 d'),
-            "6_meses": extraer_tasa(r'Plazo de 182 d'),
-            "1_ano": extraer_tasa(r'Plazo de 364 d')
+            "a_la_vista": extraer_tasa(r'[Aa]\s*la\s*vista') or extraer_tasa_gat(r'[Ii]nversi.n a la vista'),
+            "1_mes": extraer_tasa(r'Plazo de 28 d') or extraer_tasa_gat(r'Plazo de 28 d'),
+            "3_meses": extraer_tasa(r'Plazo de 91 d') or extraer_tasa_gat(r'Plazo de 91 d'),
+            "6_meses": extraer_tasa(r'Plazo de 182 d') or extraer_tasa_gat(r'Plazo de 182 d'),
+            "1_ano": extraer_tasa(r'Plazo de 364 d(?!.*interes)') or extraer_tasa_gat(r'Plazo de 364 d[ií]as\s*GAT')
         }
         print("Supertasas detectadas:", tasas)
         return tasas
@@ -260,27 +296,49 @@ def obtener_tasas_finsus():
         response.raise_for_status()
         html = response.text
 
-        # Extraer tasas del simulador que están en el HTML
-        # Formato: "360 días" ... "8.69%"
-        def extraer_tasa(plazo_label):
-            # Buscar en el texto visible: "X días" seguido eventualmente de porcentaje
-            pattern = rf'{plazo_label}.*?(\d+\.\d+)%'
-            match = re.search(pattern, html, re.IGNORECASE | re.DOTALL)
-            if match:
-                return round(float(match.group(1)), 2)
+        # El HTML del simulador muestra pares: "X días" seguido de "$monto" y "Y.YY%"
+        # Buscar todos los pares plazo-tasa en el simulador
+        # Formato en HTML: "30 días" ... "$2,995.83" ... "7.19%"
+        # Extraer con patrón que busca el plazo seguido de la tasa más cercana
+
+        # Estrategia: encontrar todos los bloques "X días" ... "N.NN%"
+        # en la sección del simulador (limitar búsqueda)
+        simulador_match = re.search(r'[Ss]imula.*?[Pp]reguntas', html, re.DOTALL)
+        simulador_html = simulador_match.group(0) if simulador_match else html
+
+        # Extraer pares: buscar "X días" y la tasa que le sigue
+        pares = re.findall(r'(\d+)\s*d[ií]as.*?(\d+\.\d+)%', simulador_html, re.DOTALL)
+        print("Finsus pares encontrados:", pares)
+
+        tasas_por_plazo = {}
+        for plazo_str, tasa_str in pares:
+            plazo = int(plazo_str)
+            tasa = float(tasa_str)
+            # Solo guardar tasas razonables (entre 3% y 15%)
+            if 3 <= tasa <= 15:
+                tasas_por_plazo[plazo] = tasa
+
+        print("Finsus tasas por plazo:", tasas_por_plazo)
+
+        # Mapear a nuestra estructura
+        # Buscar el plazo más cercano a cada categoría
+        def buscar_plazo(target, tolerancia=15):
+            for plazo, tasa in sorted(tasas_por_plazo.items()):
+                if abs(plazo - target) <= tolerancia:
+                    return tasa
             return None
 
-        # También extraer de la meta description como fallback
+        # Meta description como fallback para tasa principal
         meta_match = re.search(r'tasa del (\d+\.\d+)%', html, re.IGNORECASE)
         tasa_principal = round(float(meta_match.group(1)), 2) if meta_match else None
 
         tasas = {
-            "a_la_vista": extraer_tasa(r'0 d[ií]as'),
-            "7_dias": extraer_tasa(r'7 d[ií]as'),
-            "1_mes": extraer_tasa(r'30 d[ií]as'),
-            "3_meses": extraer_tasa(r'90 d[ií]as'),
-            "6_meses": extraer_tasa(r'180 d[ií]as'),
-            "1_ano": extraer_tasa(r'360 d[ií]as'),
+            "a_la_vista": buscar_plazo(0, 5),
+            "7_dias": buscar_plazo(7, 5),
+            "1_mes": buscar_plazo(30, 10),
+            "3_meses": buscar_plazo(90, 15),
+            "6_meses": buscar_plazo(180, 15),
+            "1_ano": buscar_plazo(360, 30),
             "tasa_principal": tasa_principal
         }
         print("Finsus detectadas:", tasas)
@@ -290,38 +348,49 @@ def obtener_tasas_finsus():
     return {"a_la_vista": None, "7_dias": None, "1_mes": None, "3_meses": None, "6_meses": None, "1_ano": None, "tasa_principal": None}
 
 # =========================
-# FUNCIÓN KLAR (Playwright)
+# FUNCIÓN KLAR (requests + Playwright fallback)
 # =========================
-def obtener_tasa_klar(browser):
-    try:
-        page = browser.new_page()
-        page.goto("https://www.klar.mx/gat", timeout=60000)
-        page.wait_for_load_state("networkidle")
-        page.wait_for_timeout(3000)
-        for _ in range(8):
-            page.mouse.wheel(0, 1500)
-            page.wait_for_timeout(800)
-        contenido = page.locator("body").inner_text()
-        page.close()
+def obtener_tasa_klar(browser=None):
+    # Intento 1: requests con página de inversión
+    for url in ["https://www.klar.mx/inversion", "https://www.klar.mx/gat"]:
+        try:
+            response = requests.get(url, headers=UA, timeout=10)
+            response.raise_for_status()
+            matches = re.findall(r'(\d+(?:\.\d+)?)\s*%', response.text)
+            valores = [float(m) for m in matches if 5 <= float(m) <= 20]
+            print(f"Klar ({url}) valores requests:", valores)
+            if valores:
+                tasa_max = max(valores)
+                # Buscar tasa de ahorro (generalmente 6%)
+                ahorro_match = re.search(r'(?:ahorro|cuenta).*?(\d+(?:\.\d+)?)\s*%', response.text, re.IGNORECASE)
+                tasa_ahorro = float(ahorro_match.group(1)) if ahorro_match else None
+                return {"a_la_vista": tasa_ahorro, "tasa_max": tasa_max}
+        except Exception as e:
+            print(f"Klar requests ({url}) falló:", e)
 
-        # Buscar la tasa más alta (Flexible Max hasta 15%)
-        matches = re.findall(r'(\d+(?:\.\d+)?)\s*%', contenido)
-        valores = [float(m) for m in matches if 5 <= float(m) <= 20]
-        print("Klar valores encontrados:", valores)
-
-        # Buscar tasa de cuenta ahorro (rendimiento base sin plazo)
-        ahorro_match = re.search(r'(?:ahorro|cuenta).*?(\d+(?:\.\d+)?)\s*%', contenido, re.IGNORECASE)
-        tasa_ahorro = float(ahorro_match.group(1)) if ahorro_match else None
-
-        # Buscar la tasa más alta anunciada
-        tasa_max = max(valores) if valores else None
-
-        return {
-            "a_la_vista": tasa_ahorro,
-            "tasa_max": tasa_max
-        }
-    except Exception as e:
-        print("Error Klar:", e)
+    # Intento 2: Playwright
+    if browser:
+        try:
+            page = browser.new_page()
+            page.goto("https://www.klar.mx/gat", timeout=60000)
+            page.wait_for_load_state("networkidle")
+            page.wait_for_timeout(5000)
+            for _ in range(10):
+                page.mouse.wheel(0, 1500)
+                page.wait_for_timeout(1000)
+            contenido = page.locator("body").inner_text()
+            print("Klar texto extraído (preview):", contenido[:500])
+            page.close()
+            matches = re.findall(r'(\d+(?:\.\d+)?)\s*%', contenido)
+            valores = [float(m) for m in matches if 5 <= float(m) <= 20]
+            print("Klar (Playwright) valores:", valores)
+            if valores:
+                tasa_max = max(valores)
+                ahorro_match = re.search(r'(?:ahorro|cuenta).*?(\d+(?:\.\d+)?)\s*%', contenido, re.IGNORECASE)
+                tasa_ahorro = float(ahorro_match.group(1)) if ahorro_match else None
+                return {"a_la_vista": tasa_ahorro, "tasa_max": tasa_max}
+        except Exception as e:
+            print("Error Klar Playwright:", e)
     return {"a_la_vista": None, "tasa_max": None}
 
 # =========================
