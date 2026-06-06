@@ -107,89 +107,105 @@ def obtener_tasa_didi():
 def obtener_tasa_openbank(browser=None):
     url_json = "https://www.openbank.mx/page-data/cuenta-debito-open-plus/page-data.json"
     url_html = "https://www.openbank.mx/cuenta-debito-open-plus"
-    headers_ob = {
-        "User-Agent": UA["User-Agent"],
-        "Accept": "application/json, text/html, */*",
-        "Accept-Language": "es-MX,es;q=0.9,en;q=0.8",
-        "Referer": "https://www.openbank.mx/",
-        "DNT": "1",
-    }
 
-    # Intento 1: JSON endpoint con parsing estructurado (Gatsby page-data)
-    for intento in range(3):
-        try:
-            response = requests.get(url_json, headers=headers_ob, timeout=15)
-            print(f"Openbank JSON intento {intento+1}: status {response.status_code}")
-            if response.status_code == 403:
-                import time
-                time.sleep(2)
-                continue
-            response.raise_for_status()
-            # Parsear JSON estructurado
-            data = response.json()
-            content_str = json.dumps(data)
-            # Buscar el rendimiento principal en el texto del JSON
-            porcentajes = re.findall(r'(\d+(?:\.\d+)?)\s*%\s*de\s*rendimiento', content_str)
-            valores = [float(p) for p in porcentajes if 5 <= float(p) <= 20]
-            valores = list(dict.fromkeys(valores))
-            print("Openbank JSON rendimiento valores:", valores)
-            if valores:
-                return max(valores)
-            # Fallback: buscar todos los porcentajes en rango
-            porcentajes2 = re.findall(r'(\d+(?:\.\d+)?)\s*%', content_str)
-            valores2 = [float(p) for p in porcentajes2 if 10 <= float(p) <= 16]
-            valores2 = list(dict.fromkeys(valores2))
-            print("Openbank JSON todos % (10-16):", valores2)
-            if valores2:
-                return max(valores2)
-        except Exception as e:
-            print(f"Error Openbank JSON intento {intento+1}:", e)
-
-    # Intento 2: página HTML directa
-    try:
-        response = requests.get(url_html, headers=headers_ob, timeout=15)
-        print(f"Openbank HTML status: {response.status_code}")
-        response.raise_for_status()
-        match = re.search(r'hasta\s+(\d+(?:\.\d+)?)\s*%\s*de\s*rendimiento', response.text, re.IGNORECASE)
-        if match:
-            val = float(match.group(1))
+    def _extraer_tasa(texto):
+        """Busca tasa de rendimiento en texto. Retorna float o None."""
+        # Prioridad 1: "hasta X% de rendimiento"
+        m = re.search(r'hasta\s+(\d+(?:\.\d+)?)\s*%\s*de\s*rendimiento', texto, re.IGNORECASE)
+        if m:
+            val = float(m.group(1))
             if 5 <= val <= 20:
-                print(f"Openbank HTML: {val}%")
                 return val
-        matches = re.findall(r'(\d+(?:\.\d+)?)\s*%\s*(?:de\s*rendimiento|anual)', response.text, re.IGNORECASE)
-        valores = [float(m) for m in matches if 5 <= float(m) <= 20]
-        print("Openbank HTML valores:", valores)
+        # Prioridad 2: "X% de rendimiento"
+        m2 = re.search(r'(\d+(?:\.\d+)?)\s*%\s*de\s*rendimiento', texto, re.IGNORECASE)
+        if m2:
+            val = float(m2.group(1))
+            if 5 <= val <= 20:
+                return val
+        # Prioridad 3: "Gana X% de rendimiento" o "rendimiento anual"
+        m3 = re.search(r'[Gg]ana\s+(?:hasta\s+)?(\d+(?:\.\d+)?)\s*%', texto)
+        if m3:
+            val = float(m3.group(1))
+            if 5 <= val <= 20:
+                return val
+        # Prioridad 4: porcentajes en rango típico de Openbank
+        matches = re.findall(r'(\d+(?:\.\d+)?)\s*%', texto)
+        valores = [float(m) for m in matches if 10 <= float(m) <= 16]
         if valores:
-            return max(valores)
-    except Exception as e:
-        print("Error Openbank HTML:", e)
+            from collections import Counter
+            conteo = Counter(valores)
+            # El valor que más se repite es probablemente la tasa principal
+            return conteo.most_common(1)[0][0]
+        return None
 
-    # Intento 3: Playwright
+    # ===== Intento 1: Playwright (prioridad — requests siempre da 403 desde GitHub Actions) =====
     if browser:
         try:
             page = browser.new_page()
+            # Visitar homepage primero para establecer cookies/sesión
+            print("Openbank: visitando homepage para cookies...")
+            page.goto("https://www.openbank.mx/", timeout=30000)
+            page.wait_for_load_state("domcontentloaded", timeout=10000)
+            page.wait_for_timeout(2000)
+
+            # Intentar cargar el JSON desde el contexto del navegador (bypass 403)
+            print("Openbank: intentando JSON via Playwright fetch...")
+            try:
+                json_resp = page.evaluate("""async () => {
+                    const r = await fetch('/page-data/cuenta-debito-open-plus/page-data.json');
+                    if (!r.ok) return {status: r.status, text: ''};
+                    return {status: r.status, text: await r.text()};
+                }""")
+                print(f"Openbank Playwright fetch JSON status: {json_resp['status']}")
+                if json_resp['status'] == 200 and json_resp['text']:
+                    tasa = _extraer_tasa(json_resp['text'])
+                    if tasa:
+                        print(f"Openbank via Playwright JSON fetch: {tasa}%")
+                        page.close()
+                        return tasa
+            except Exception as e:
+                print(f"Openbank Playwright fetch JSON error: {e}")
+
+            # Navegar a la página del producto
+            print("Openbank: navegando a página de producto...")
             page.goto(url_html, timeout=45000)
             page.wait_for_load_state("domcontentloaded", timeout=15000)
-            page.wait_for_timeout(3000)
+            page.wait_for_timeout(5000)
+            # Scroll para cargar contenido lazy
+            for _ in range(3):
+                page.mouse.wheel(0, 1500)
+                page.wait_for_timeout(1000)
             contenido = page.locator("body").inner_text()
             print(f"Openbank Playwright texto: {len(contenido)} chars")
+            if len(contenido) > 600:
+                print("Openbank Playwright preview:", repr(contenido[:300]))
             page.close()
-            match = re.search(r'hasta\s+(\d+(?:\.\d+)?)\s*%\s*de\s*rendimiento', contenido, re.IGNORECASE)
-            if match:
-                val = float(match.group(1))
-                if 5 <= val <= 20:
-                    return val
-            match2 = re.search(r'(\d+(?:\.\d+)?)\s*%\s*de\s*rendimiento', contenido, re.IGNORECASE)
-            if match2:
-                val = float(match2.group(1))
-                if 5 <= val <= 20:
-                    return val
-            matches = re.findall(r'(\d+(?:\.\d+)?)\s*%', contenido)
-            valores = [float(m) for m in matches if 10 <= float(m) <= 15]
-            if valores:
-                return max(valores)
+            tasa = _extraer_tasa(contenido)
+            if tasa:
+                print(f"Openbank Playwright resultado: {tasa}%")
+                return tasa
         except Exception as e:
             print("Error Openbank Playwright:", e)
+
+    # ===== Intento 2: requests JSON (funciona fuera de GitHub Actions) =====
+    try:
+        headers_ob = {
+            "User-Agent": UA["User-Agent"],
+            "Accept": "application/json, text/html, */*",
+            "Accept-Language": "es-MX,es;q=0.9,en;q=0.8",
+            "Referer": "https://www.openbank.mx/",
+        }
+        response = requests.get(url_json, headers=headers_ob, timeout=15)
+        print(f"Openbank requests JSON status: {response.status_code}")
+        if response.status_code == 200:
+            tasa = _extraer_tasa(response.text)
+            if tasa:
+                print(f"Openbank requests JSON: {tasa}%")
+                return tasa
+    except Exception as e:
+        print("Error Openbank requests:", e)
+
+    print("WARN: Openbank — todos los métodos fallaron")
     return None
 
 # =========================
