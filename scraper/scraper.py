@@ -673,18 +673,19 @@ def obtener_tasa_klar(browser=None):
 def main():
     os.makedirs("data", exist_ok=True)
 
-    # Iniciar Playwright una sola vez para todos los scrapers que lo necesiten
+    # Scrapers que funcionan con requests (sin Playwright)
+    mp_tasa = obtener_tasa_mercadopago()
+    revolut_tasa = obtener_tasa_revolut()
+    klar_tasas = obtener_tasa_klar()
+
+    # Scrapers que necesitan Playwright (React SPAs o sitios que bloquean requests)
     with sync_playwright() as p:
         browser = p.chromium.launch(
             headless=True,
             args=["--disable-blink-features=AutomationControlled"]
         )
 
-        # Scrapers con Playwright
         nu_tasas = obtener_tasas_nu(browser)
-        mp_tasa = obtener_tasa_mercadopago(browser)
-        revolut_tasa = obtener_tasa_revolut(browser)
-        klar_tasas = obtener_tasa_klar(browser)
         finsus_tasas = obtener_tasas_finsus(browser)
         supertasas = obtener_tasas_supertasas(browser)
         openbank_tasa = obtener_tasa_openbank(browser)
