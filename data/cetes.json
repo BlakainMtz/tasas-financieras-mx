@@ -1,5 +1,5 @@
 {
-  "last_update": "2026-06-05T20:09:02.683659+00:00",
+  "last_update": "2026-06-06T05:21:10.533754+00:00",
   "CETES": {
     "1_mes": 6.36,
     "3_meses": 6.56,
@@ -7,7 +7,7 @@
     "1_ano": 7.16
   },
   "BONDDIA": {
-    "a_la_vista": 6.32
+    "a_la_vista": 6.26
   },
   "NU": {
     "a_la_vista": null,
@@ -22,5 +22,34 @@
   },
   "OPENBANK": {
     "a_la_vista": 13.0
+  },
+  "MERCADOPAGO": {
+    "a_la_vista": null
+  },
+  "REVOLUT": {
+    "a_la_vista": null
+  },
+  "MIFEL": {
+    "a_la_vista": 10.0
+  },
+  "SUPERTASAS": {
+    "a_la_vista": 8.8,
+    "1_mes": 8.8,
+    "3_meses": 8.8,
+    "6_meses": 8.8,
+    "1_ano": 8.8
+  },
+  "FINSUS": {
+    "a_la_vista": 9.09,
+    "7_dias": 9.09,
+    "1_mes": 9.09,
+    "3_meses": 9.09,
+    "6_meses": 9.09,
+    "1_ano": 9.09,
+    "tasa_principal": 9.09
+  },
+  "KLAR": {
+    "a_la_vista": null,
+    "tasa_max": null
   }
 }
