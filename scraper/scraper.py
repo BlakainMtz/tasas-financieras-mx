@@ -108,23 +108,22 @@ def obtener_tasa_openbank():
     try:
         response = requests.get(url, headers=UA, timeout=10)
         response.raise_for_status()
-        data = response.json()
-        node = data.get("result", {}).get("pageContext", {}).get("node", {}).get("data", {}).get("content", {})
-        paragraphs = node.get("paragraphs", [])
-        textos = [json.dumps(p.get("paragraph", {})) for p in paragraphs if "value" in str(p.get("paragraph", {}))]
-        text = " ".join(textos)
-        porcentajes = re.findall(r'(\d+[.,]?\d*)\s*%', text)
+        # Buscar porcentajes en TODO el JSON como texto plano
+        # La tasa principal (13%) aparece en subtitleProductHeader y en la tabla
+        text = response.text
+        porcentajes = re.findall(r'(\d+(?:\.\d+)?)\s*%', text)
         valores = []
         for p in porcentajes:
             try:
-                v = float(p.replace(",", "."))
-                if 0 < v < 30:
+                v = float(p)
+                if 5 <= v <= 20:
                     valores.append(v)
             except:
                 continue
         valores = list(dict.fromkeys(valores))
         print("Openbank valores:", valores)
-        if 13 in valores:
+        # La tasa principal de Apartados Open es la más alta (actualmente 13%)
+        if 13.0 in valores:
             return 13.0
         return round(max(valores), 2) if valores else None
     except Exception as e:
@@ -260,29 +259,59 @@ def obtener_tasas_supertasas():
         response.raise_for_status()
         html = response.text
 
-        # Extraer TODAS las secciones GAT que tienen formato estructurado:
-        # "Plazo de X días\nGAT nominal: Y.YY%"
-        # o "Inversión a la vista\nGAT nominal: Y.YY%"
+        # Limpiar HTML: quitar tags para obtener texto plano
+        texto = re.sub(r'<[^>]+>', '\n', html)
+        texto = re.sub(r'\n{2,}', '\n', texto)
+
+        # Approach 1: buscar "X.XX% ... Plazo de Y días" (tasa antes del plazo)
+        # En la sección principal de la página
+        pares_principal = re.findall(
+            r'(\d+\.\d+)\s*%\s*\n?\s*((?:Plazo de \d+ d[ií]as(?:\s*[\(,].*?)?)|(?:A la vista))',
+            texto, re.IGNORECASE
+        )
+        print("Supertasas pares principal:", pares_principal)
+
+        # Approach 2 (fallback): buscar "GAT nominal: X.XX%" después de "Plazo de Y días"
         gat_pares = re.findall(
-            r'((?:Plazo de \d+ d[ií]as(?:, intereses cada \d+ d[ií]as)?)|(?:Inversi[oó]n a la vista))\s*'
-            r'GAT nominal:\s*(\d+\.\d+)%',
-            html, re.IGNORECASE
+            r'((?:Plazo de \d+ d[ií]as(?:[^G]{0,60})?)|(?:Inversi[oó]n a la vista))\s*'
+            r'GAT nominal[:\s]*(\d+\.\d+)\s*%',
+            texto, re.IGNORECASE
         )
         print("Supertasas GAT pares:", gat_pares)
 
         tasas_map = {}
-        for label, tasa in gat_pares:
+
+        # Primero intentar con pares principales (tasas publicitadas)
+        for tasa_str, label in pares_principal:
             label_lower = label.lower()
-            if 'a la vista' in label_lower:
-                tasas_map['a_la_vista'] = float(tasa)
-            elif 'plazo de 28' in label_lower:
-                tasas_map['1_mes'] = float(tasa)
-            elif 'plazo de 91' in label_lower:
-                tasas_map['3_meses'] = float(tasa)
-            elif 'plazo de 182' in label_lower:
-                tasas_map['6_meses'] = float(tasa)
-            elif 'plazo de 364' in label_lower and 'interes' not in label_lower:
-                tasas_map['1_ano'] = float(tasa)
+            tasa = float(tasa_str)
+            if 3 <= tasa <= 15:
+                if 'a la vista' in label_lower:
+                    tasas_map.setdefault('a_la_vista', tasa)
+                elif 'plazo de 28' in label_lower:
+                    tasas_map.setdefault('1_mes', tasa)
+                elif 'plazo de 91' in label_lower:
+                    tasas_map.setdefault('3_meses', tasa)
+                elif 'plazo de 182' in label_lower:
+                    tasas_map.setdefault('6_meses', tasa)
+                elif 'plazo de 364' in label_lower and 'interes' not in label_lower:
+                    tasas_map.setdefault('1_ano', tasa)
+
+        # Completar con GAT si faltan
+        for label, tasa_str in gat_pares:
+            label_lower = label.lower()
+            tasa = float(tasa_str)
+            if 3 <= tasa <= 15:
+                if 'a la vista' in label_lower:
+                    tasas_map.setdefault('a_la_vista', tasa)
+                elif 'plazo de 28' in label_lower:
+                    tasas_map.setdefault('1_mes', tasa)
+                elif 'plazo de 91' in label_lower:
+                    tasas_map.setdefault('3_meses', tasa)
+                elif 'plazo de 182' in label_lower:
+                    tasas_map.setdefault('6_meses', tasa)
+                elif 'plazo de 364' in label_lower and 'interes' not in label_lower:
+                    tasas_map.setdefault('1_ano', tasa)
 
         tasas = {
             "a_la_vista": tasas_map.get('a_la_vista'),
@@ -301,12 +330,39 @@ def obtener_tasas_supertasas():
 # FUNCIÓN FINSUS (scraping HTML)
 # Las tasas están en el simulador del HTML
 # =========================
-def obtener_tasas_finsus():
+def obtener_tasas_finsus(browser=None):
     url = "https://finsus.mx/personas/inversiones"
+
+    # Obtener el contenido de la página (requests o Playwright)
+    html = None
     try:
         response = requests.get(url, headers=UA, timeout=10)
         response.raise_for_status()
         html = response.text
+    except Exception as e:
+        print("Finsus requests falló:", e)
+
+    # Si requests no trajo datos del simulador, usar Playwright
+    if html and '$' not in html.split('Simula')[-1][:2000] if 'Simula' in html else True:
+        if browser:
+            try:
+                page = browser.new_page()
+                page.goto(url, timeout=60000)
+                page.wait_for_load_state("networkidle")
+                page.wait_for_timeout(3000)
+                for _ in range(8):
+                    page.mouse.wheel(0, 1500)
+                    page.wait_for_timeout(800)
+                html = page.locator("body").inner_text()
+                print("Finsus usando Playwright, texto:", len(html), "chars")
+                page.close()
+            except Exception as e:
+                print("Error Finsus Playwright:", e)
+
+    if not html:
+        return {"a_la_vista": None, "7_dias": None, "1_mes": None, "3_meses": None, "6_meses": None, "1_ano": None, "tasa_principal": None}
+
+    try:
 
         # El simulador muestra filas de rendimiento: "$monto\ntasa%"
         # Están en orden ASCENDENTE de plazo (7, 30, 90, 180, 360, 540, ...)
@@ -393,7 +449,11 @@ def obtener_tasa_klar(browser=None):
     try:
         response = requests.get(url, headers=UA, timeout=10)
         response.raise_for_status()
-        texto = response.text
+        # Limpiar HTML tags para obtener texto plano (Webflow renderiza con JS pero
+        # el contenido de la tabla está en el HTML estático)
+        texto_raw = response.text
+        texto = re.sub(r'<[^>]+>', '\n', texto_raw)
+        texto = re.sub(r'\n{2,}', '\n', texto)
 
         # Extraer tasa máxima del hero: "Inversión Max: 15% de rendimiento"
         tasa_max = None
@@ -446,13 +506,16 @@ def obtener_tasa_klar(browser=None):
     except Exception as e:
         print("Error Klar:", e)
 
-    # Fallback: Playwright
+    # Fallback: Playwright (parsea tabla completa desde texto renderizado)
     if browser:
         try:
             page = browser.new_page()
             page.goto(url, timeout=60000)
             page.wait_for_load_state("networkidle")
             page.wait_for_timeout(3000)
+            for _ in range(5):
+                page.mouse.wheel(0, 1500)
+                page.wait_for_timeout(800)
             contenido = page.locator("body").inner_text()
             page.close()
 
@@ -460,11 +523,36 @@ def obtener_tasa_klar(browser=None):
             max_match = re.search(r'Inversión Max[:\s]*(\d+(?:\.\d+)?)\s*%', contenido, re.IGNORECASE)
             if max_match:
                 tasa_max = float(max_match.group(1))
+            if not tasa_max:
+                hasta_match = re.search(r'hasta\s+(\d+(?:\.\d+)?)\s*%\s*de\s*rendimiento', contenido, re.IGNORECASE)
+                if hasta_match and 8 <= float(hasta_match.group(1)) <= 16:
+                    tasa_max = float(hasta_match.group(1))
 
             cuenta_match = re.search(r'Cuenta\s*\n\s*(\d+(?:\.\d+)?)\s*%', contenido)
             tasa_cuenta = float(cuenta_match.group(1)) if cuenta_match else None
 
-            resultado = {"a_la_vista": tasa_cuenta, "tasa_max": tasa_max}
+            tasas_plazo = {}
+            plazo_patterns = [
+                (r'Inversión Fija 7 días\s*\n\s*(\d+\.\d+)%', '7_dias'),
+                (r'Inversión Fija 30 días\s*\n\s*(\d+\.\d+)%', '1_mes'),
+                (r'Inversión Fija 90 días\s*\n\s*(\d+\.\d+)%', '3_meses'),
+                (r'Inversión Fija 180 días\s*\n\s*(\d+\.\d+)%', '6_meses'),
+                (r'Inversión Fija 365 días\s*\n\s*(\d+\.\d+)%', '1_ano'),
+            ]
+            for patron, clave in plazo_patterns:
+                m = re.search(patron, contenido)
+                if m:
+                    tasas_plazo[clave] = float(m.group(1))
+
+            flex_match = re.search(r'Inversión Flexible\s*\n\s*(\d+(?:\.\d+)?)\s*%', contenido)
+            tasa_flexible = float(flex_match.group(1)) if flex_match else None
+
+            resultado = {
+                "a_la_vista": tasa_cuenta,
+                "tasa_max": tasa_max,
+                "flexible": tasa_flexible,
+                **tasas_plazo
+            }
             print("Klar Playwright resultado:", resultado)
             return resultado
         except Exception as e:
@@ -490,12 +578,12 @@ def main():
         mp_tasa = obtener_tasa_mercadopago(browser)
         revolut_tasa = obtener_tasa_revolut(browser)
         klar_tasas = obtener_tasa_klar(browser)
+        finsus_tasas = obtener_tasas_finsus(browser)
 
         browser.close()
 
     # Scrapers sin Playwright (requests)
     supertasas = obtener_tasas_supertasas()
-    finsus_tasas = obtener_tasas_finsus()
 
     data = {
         "last_update": datetime.now(timezone.utc).isoformat(),
