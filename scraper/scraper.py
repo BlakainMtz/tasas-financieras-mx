@@ -147,20 +147,32 @@ def obtener_tasa_openbank(browser=None):
             page = browser.new_page()
             page.goto(url_html, timeout=60000)
             page.wait_for_load_state("networkidle")
-            page.wait_for_timeout(3000)
+            page.wait_for_timeout(5000)
+            for _ in range(5):
+                page.mouse.wheel(0, 1500)
+                page.wait_for_timeout(800)
             contenido = page.locator("body").inner_text()
+            print(f"Openbank Playwright texto: {len(contenido)} chars")
+            print("Openbank Playwright preview:", repr(contenido[:500]))
             page.close()
-            # Buscar "hasta X% de rendimiento" o "X% de rendimiento"
+            # Buscar "hasta X% de rendimiento"
             match = re.search(r'hasta\s+(\d+(?:\.\d+)?)\s*%\s*de\s*rendimiento', contenido, re.IGNORECASE)
             if match:
                 val = float(match.group(1))
                 if 5 <= val <= 20:
                     print(f"Openbank Playwright: {val}%")
                     return val
-            # Buscar porcentajes en contexto
-            matches = re.findall(r'(\d+(?:\.\d+)?)\s*%\s*(?:de\s*rendimiento|anual)', contenido, re.IGNORECASE)
-            valores = [float(m) for m in matches if 5 <= float(m) <= 20]
-            print("Openbank Playwright valores:", valores)
+            # Buscar "X% de rendimiento" o "rendimiento anual" con número
+            match2 = re.search(r'(\d+(?:\.\d+)?)\s*%\s*de\s*rendimiento', contenido, re.IGNORECASE)
+            if match2:
+                val = float(match2.group(1))
+                if 5 <= val <= 20:
+                    print(f"Openbank Playwright (rendimiento): {val}%")
+                    return val
+            # Buscar porcentajes cerca de "rendimiento" o "tasa"
+            matches = re.findall(r'(\d+(?:\.\d+)?)\s*%', contenido)
+            valores = [float(m) for m in matches if 10 <= float(m) <= 15]
+            print("Openbank Playwright todos %:", valores[:10])
             if valores:
                 return max(valores)
         except Exception as e:
@@ -413,10 +425,15 @@ def obtener_tasas_finsus(browser=None):
     if not pares and browser:
         try:
             page = browser.new_page()
-            page.goto(url, timeout=60000)
-            page.wait_for_load_state("networkidle")
+            page.goto(url, timeout=90000)
+            # Esperar a que aparezca el simulador (React SPA necesita tiempo)
+            try:
+                page.wait_for_selector("text=$", timeout=30000)
+            except Exception:
+                print("Finsus: esperando carga completa...")
+                page.wait_for_timeout(10000)
             page.wait_for_timeout(3000)
-            for _ in range(8):
+            for _ in range(10):
                 page.mouse.wheel(0, 1500)
                 page.wait_for_timeout(800)
             html = page.locator("body").inner_text()
@@ -425,6 +442,9 @@ def obtener_tasas_finsus(browser=None):
             sim_idx = html.find('$')
             if sim_idx > 0:
                 print("Finsus Playwright muestra $:", repr(html[sim_idx:sim_idx+200]))
+            else:
+                print("Finsus Playwright: NO se encontró '$' en el texto")
+                print("Finsus texto preview:", repr(html[:500]))
             page.close()
             pares = parsear_finsus(html)
             print(f"Finsus Playwright: {len(pares)} pares encontrados")
