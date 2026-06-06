@@ -56,13 +56,14 @@ def obtener_tasa_bonddia():
 def obtener_tasas_nu(browser):
     try:
         page = browser.new_page()
-        page.goto("https://nu.com.mx/cuenta/rendimientos/", timeout=60000)
-        page.wait_for_load_state("networkidle")
-        for _ in range(10):
-            page.mouse.wheel(0, 2000)
-            page.wait_for_timeout(800)
-        page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+        page.goto("https://nu.com.mx/cuenta/rendimientos/", timeout=45000)
+        page.wait_for_load_state("domcontentloaded", timeout=15000)
         page.wait_for_timeout(3000)
+        for _ in range(8):
+            page.mouse.wheel(0, 2000)
+            page.wait_for_timeout(500)
+        page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+        page.wait_for_timeout(2000)
         contenido = page.locator("body").inner_text()
         page.close()
 
@@ -145,12 +146,9 @@ def obtener_tasa_openbank(browser=None):
     if browser:
         try:
             page = browser.new_page()
-            page.goto(url_html, timeout=60000)
-            page.wait_for_load_state("networkidle")
-            page.wait_for_timeout(5000)
-            for _ in range(5):
-                page.mouse.wheel(0, 1500)
-                page.wait_for_timeout(800)
+            page.goto(url_html, timeout=45000)
+            page.wait_for_load_state("domcontentloaded", timeout=15000)
+            page.wait_for_timeout(3000)
             contenido = page.locator("body").inner_text()
             print(f"Openbank Playwright texto: {len(contenido)} chars")
             print("Openbank Playwright preview:", repr(contenido[:500]))
@@ -201,12 +199,12 @@ def obtener_tasa_mercadopago(browser=None):
     if browser:
         try:
             page = browser.new_page()
-            page.goto("https://www.mercadopago.com.mx/cuenta", timeout=60000)
-            page.wait_for_load_state("networkidle")
-            page.wait_for_timeout(5000)
-            for _ in range(8):
+            page.goto("https://www.mercadopago.com.mx/cuenta", timeout=30000)
+            page.wait_for_load_state("domcontentloaded", timeout=10000)
+            page.wait_for_timeout(3000)
+            for _ in range(4):
                 page.mouse.wheel(0, 1500)
-                page.wait_for_timeout(1000)
+                page.wait_for_timeout(500)
             contenido = page.locator("body").inner_text()
             print("Mercado Pago texto extraído (preview):", contenido[:500])
             page.close()
@@ -241,12 +239,12 @@ def obtener_tasa_revolut(browser=None):
     if browser:
         try:
             page = browser.new_page()
-            page.goto("https://www.revolut.com/es-MX/instant-access-savings/", timeout=60000)
-            page.wait_for_load_state("networkidle")
-            page.wait_for_timeout(5000)
-            for _ in range(8):
+            page.goto("https://www.revolut.com/es-MX/instant-access-savings/", timeout=30000)
+            page.wait_for_load_state("domcontentloaded", timeout=10000)
+            page.wait_for_timeout(3000)
+            for _ in range(4):
                 page.mouse.wheel(0, 1500)
-                page.wait_for_timeout(1000)
+                page.wait_for_timeout(500)
             contenido = page.locator("body").inner_text()
             print("Revolut texto extraído (preview):", contenido[:500])
             page.close()
@@ -361,12 +359,12 @@ def obtener_tasas_supertasas(browser=None):
     if browser:
         try:
             page = browser.new_page()
-            page.goto(url, timeout=60000)
-            page.wait_for_load_state("networkidle")
-            page.wait_for_timeout(3000)
-            for _ in range(5):
+            page.goto(url, timeout=30000)
+            page.wait_for_load_state("domcontentloaded", timeout=10000)
+            page.wait_for_timeout(2000)
+            for _ in range(3):
                 page.mouse.wheel(0, 1500)
-                page.wait_for_timeout(800)
+                page.wait_for_timeout(500)
             contenido = page.locator("body").inner_text()
             page.close()
             print("Supertasas Playwright texto:", len(contenido), "chars")
@@ -425,17 +423,12 @@ def obtener_tasas_finsus(browser=None):
     if not pares and browser:
         try:
             page = browser.new_page()
-            page.goto(url, timeout=90000)
-            # Esperar a que aparezca el simulador (React SPA necesita tiempo)
-            try:
-                page.wait_for_selector("text=$", timeout=30000)
-            except Exception:
-                print("Finsus: esperando carga completa...")
-                page.wait_for_timeout(10000)
-            page.wait_for_timeout(3000)
-            for _ in range(10):
+            page.goto(url, timeout=45000)
+            page.wait_for_load_state("domcontentloaded", timeout=15000)
+            page.wait_for_timeout(5000)
+            for _ in range(5):
                 page.mouse.wheel(0, 1500)
-                page.wait_for_timeout(800)
+                page.wait_for_timeout(500)
             html = page.locator("body").inner_text()
             print("Finsus usando Playwright, texto:", len(html), "chars")
             # Debug: mostrar fragmento del simulador
@@ -626,12 +619,12 @@ def obtener_tasa_klar(browser=None):
     if browser:
         try:
             page = browser.new_page()
-            page.goto(url, timeout=60000)
-            page.wait_for_load_state("networkidle")
-            page.wait_for_timeout(3000)
-            for _ in range(5):
+            page.goto(url, timeout=30000)
+            page.wait_for_load_state("domcontentloaded", timeout=10000)
+            page.wait_for_timeout(2000)
+            for _ in range(3):
                 page.mouse.wheel(0, 1500)
-                page.wait_for_timeout(800)
+                page.wait_for_timeout(500)
             contenido = page.locator("body").inner_text()
             page.close()
 
