@@ -104,30 +104,43 @@ def obtener_tasa_didi():
 # FUNCIÓN OPENBANK (JSON endpoint)
 # =========================
 def obtener_tasa_openbank():
-    url = "https://www.openbank.mx/page-data/cuenta-debito-open-plus/page-data.json"
+    # Intento 1: JSON endpoint (más confiable cuando funciona)
+    url_json = "https://www.openbank.mx/page-data/cuenta-debito-open-plus/page-data.json"
     try:
-        response = requests.get(url, headers=UA, timeout=10)
+        response = requests.get(url_json, headers=UA, timeout=10)
         response.raise_for_status()
-        # Buscar porcentajes en TODO el JSON como texto plano
-        # La tasa principal (13%) aparece en subtitleProductHeader y en la tabla
         text = response.text
         porcentajes = re.findall(r'(\d+(?:\.\d+)?)\s*%', text)
-        valores = []
-        for p in porcentajes:
-            try:
-                v = float(p)
-                if 5 <= v <= 20:
-                    valores.append(v)
-            except:
-                continue
+        valores = [float(p) for p in porcentajes if 5 <= float(p) <= 20]
         valores = list(dict.fromkeys(valores))
-        print("Openbank valores:", valores)
-        # La tasa principal de Apartados Open es la más alta (actualmente 13%)
+        print("Openbank JSON valores:", valores)
         if 13.0 in valores:
             return 13.0
-        return round(max(valores), 2) if valores else None
+        if valores:
+            return round(max(valores), 2)
     except Exception as e:
-        print("Error Openbank:", e)
+        print("Error Openbank JSON:", e)
+
+    # Intento 2: página HTML directa
+    url_html = "https://www.openbank.mx/cuenta-debito-open-plus"
+    try:
+        response = requests.get(url_html, headers=UA, timeout=10)
+        response.raise_for_status()
+        # Buscar "hasta X% de rendimiento" o "X% de rendimiento anual"
+        match = re.search(r'hasta\s+(\d+(?:\.\d+)?)\s*%\s*de\s*rendimiento', response.text, re.IGNORECASE)
+        if match:
+            val = float(match.group(1))
+            if 5 <= val <= 20:
+                print(f"Openbank HTML: {val}%")
+                return val
+        # Fallback: buscar porcentajes en contexto de tasa/rendimiento
+        matches = re.findall(r'(\d+(?:\.\d+)?)\s*%\s*(?:de\s*rendimiento|anual)', response.text, re.IGNORECASE)
+        valores = [float(m) for m in matches if 5 <= float(m) <= 20]
+        print("Openbank HTML valores:", valores)
+        if valores:
+            return max(valores)
+    except Exception as e:
+        print("Error Openbank HTML:", e)
     return None
 
 # =========================
@@ -333,44 +346,47 @@ def obtener_tasas_supertasas():
 def obtener_tasas_finsus(browser=None):
     url = "https://finsus.mx/personas/inversiones"
 
-    # Obtener el contenido de la página (requests o Playwright)
+    def parsear_finsus(html):
+        """Intenta extraer pares monto-tasa del HTML/texto de Finsus."""
+        pares = re.findall(r'\$([\d,]+\.\d+)\s*\n\s*(\d+\.\d+)%', html)
+        if not pares:
+            pares = re.findall(r'\$([\d,]+\.\d+)\s+(\d+\.\d+)%', html)
+        return pares
+
+    # Intento 1: requests
     html = None
+    pares = []
     try:
         response = requests.get(url, headers=UA, timeout=10)
         response.raise_for_status()
         html = response.text
+        pares = parsear_finsus(html)
+        print(f"Finsus requests: {len(pares)} pares encontrados")
     except Exception as e:
         print("Finsus requests falló:", e)
 
-    # Si requests no trajo datos del simulador, usar Playwright
-    if html and '$' not in html.split('Simula')[-1][:2000] if 'Simula' in html else True:
-        if browser:
-            try:
-                page = browser.new_page()
-                page.goto(url, timeout=60000)
-                page.wait_for_load_state("networkidle")
-                page.wait_for_timeout(3000)
-                for _ in range(8):
-                    page.mouse.wheel(0, 1500)
-                    page.wait_for_timeout(800)
-                html = page.locator("body").inner_text()
-                print("Finsus usando Playwright, texto:", len(html), "chars")
-                page.close()
-            except Exception as e:
-                print("Error Finsus Playwright:", e)
+    # Intento 2: si no hay pares, usar Playwright
+    if not pares and browser:
+        try:
+            page = browser.new_page()
+            page.goto(url, timeout=60000)
+            page.wait_for_load_state("networkidle")
+            page.wait_for_timeout(3000)
+            for _ in range(8):
+                page.mouse.wheel(0, 1500)
+                page.wait_for_timeout(800)
+            html = page.locator("body").inner_text()
+            print("Finsus usando Playwright, texto:", len(html), "chars")
+            page.close()
+            pares = parsear_finsus(html)
+            print(f"Finsus Playwright: {len(pares)} pares encontrados")
+        except Exception as e:
+            print("Error Finsus Playwright:", e)
 
     if not html:
         return {"a_la_vista": None, "7_dias": None, "1_mes": None, "3_meses": None, "6_meses": None, "1_ano": None, "tasa_principal": None}
 
     try:
-
-        # El simulador muestra filas de rendimiento: "$monto\ntasa%"
-        # Están en orden ASCENDENTE de plazo (7, 30, 90, 180, 360, 540, ...)
-        # Extraer pares (monto, tasa) para calcular el plazo real
-        pares = re.findall(r'\$([\d,]+\.\d+)\s*\n\s*(\d+\.\d+)%', html)
-        if not pares:
-            # Fallback: buscar en texto plano (web_fetch format)
-            pares = re.findall(r'\$([\d,]+\.\d+)\s+(\d+\.\d+)%', html)
         print("Finsus pares monto-tasa:", pares[:12])
 
         # Detectar el monto de inversión default desde el GAT section
