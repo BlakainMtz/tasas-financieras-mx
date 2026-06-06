@@ -108,6 +108,7 @@ def obtener_tasa_openbank(browser=None):
     url_json = "https://www.openbank.mx/page-data/cuenta-debito-open-plus/page-data.json"
     try:
         response = requests.get(url_json, headers=UA, timeout=10)
+        print(f"Openbank JSON status: {response.status_code}, length: {len(response.text)}")
         response.raise_for_status()
         text = response.text
         porcentajes = re.findall(r'(\d+(?:\.\d+)?)\s*%', text)
@@ -374,10 +375,26 @@ def obtener_tasas_finsus(browser=None):
 
     def parsear_finsus(texto):
         """Intenta extraer pares monto-tasa del texto de Finsus."""
-        # Más flexible con whitespace: permite múltiples newlines entre monto y tasa
+        # Método 1: regex directo
         pares = re.findall(r'\$([\d,]+\.\d+)\s+(\d+\.\d+)\s*%', texto)
-        if not pares:
-            pares = re.findall(r'\$([\d,]+(?:\.\d+)?)\s+(\d+\.\d+)\s*%', texto)
+        if pares:
+            return pares
+
+        # Método 2: line-by-line (robusto contra whitespace variado)
+        lines = [l.strip() for l in texto.split('\n') if l.strip()]
+        pares = []
+        for i, line in enumerate(lines):
+            # Buscar línea que sea solo un monto: $X,XXX.XX
+            if re.match(r'^\$[\d,]+\.\d+$', line):
+                monto = line[1:].replace(',', '')
+                # Buscar tasa en las siguientes 3 líneas
+                for j in range(i+1, min(i+4, len(lines))):
+                    rate_match = re.match(r'^(\d+\.\d+)\s*%$', lines[j])
+                    if rate_match:
+                        pares.append((monto, rate_match.group(1)))
+                        break
+        if pares:
+            print(f"Finsus line-by-line: {len(pares)} pares encontrados")
         return pares
 
     # Intento 1: requests
@@ -456,29 +473,7 @@ def obtener_tasas_finsus(browser=None):
                 if abs(plazo_cercano - plazo_calc) <= 5:
                     tasas_por_plazo[plazo_cercano] = tasa
         else:
-            # Fallback: extraer tasas directamente del texto del simulador
-            # El simulador muestra tasas en orden de plazo corto a largo:
-            # 7d, 30d, 90d, 180d, 360d, 540d, ...
-            # Buscar la sección del simulador y extraer todas las tasas
-            plazos_orden = [7, 30, 90, 180, 360, 540, 600, 720, 1080, 1440, 1800]
-            # Buscar todas las tasas que aparecen como "X.XX%" en el rango esperado
-            todas_tasas = re.findall(r'(?<!\d)(\d+\.\d+)\s*%', html)
-            tasas_validas = [(i, float(t)) for i, t in enumerate(todas_tasas) if 5 <= float(t) <= 12]
-            print(f"Finsus fallback: {len(tasas_validas)} tasas válidas encontradas:", tasas_validas[:15])
-
-            # Si hay exactamente tantas tasas como plazos (o más), intentar mapear
-            # Buscar la secuencia de tasas consecutivas que corresponden al simulador
-            if len(tasas_validas) >= 5:
-                # Tomar las primeras 11 tasas únicas (orden del simulador)
-                tasas_seq = []
-                for _, t in tasas_validas:
-                    if not tasas_seq or t != tasas_seq[-1]:
-                        tasas_seq.append(t)
-                    if len(tasas_seq) >= len(plazos_orden):
-                        break
-                for i, plazo in enumerate(plazos_orden):
-                    if i < len(tasas_seq):
-                        tasas_por_plazo[plazo] = tasas_seq[i]
+            print("Finsus: no se encontraron pares monto-tasa")
 
         print("Finsus tasas por plazo:", tasas_por_plazo)
 
