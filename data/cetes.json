@@ -1,21 +1,21 @@
 {
-  "last_update": "2026-06-08T20:36:36.903675+00:00",
+  "last_update": "2026-06-09T20:21:37.865753+00:00",
   "CETES": {
-    "1_mes": 6.36,
-    "3_meses": 6.56,
-    "6_meses": 6.69,
-    "1_ano": 7.16
+    "1_mes": 6.25,
+    "3_meses": 6.48,
+    "6_meses": 6.7,
+    "1_ano": 7.0
   },
   "BONDDIA": {
-    "a_la_vista": 6.26
+    "a_la_vista": 6.06
   },
   "NU": {
     "a_la_vista": null,
-    "1_semana": null,
-    "1_mes": null,
-    "3_meses": null,
-    "6_meses": null,
-    "cajita_turbo": null
+    "1_semana": 6.55,
+    "1_mes": 6.6,
+    "3_meses": 6.7,
+    "6_meses": 6.8,
+    "cajita_turbo": 13.0
   },
   "DIDICUENTA": {
     "a_la_vista": 15.0
