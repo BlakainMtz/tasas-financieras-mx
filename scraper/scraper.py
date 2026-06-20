@@ -107,11 +107,9 @@ def obtener_tasa_didi():
 def obtener_tasa_openbank(browser=None):
     url_json = "https://www.openbank.mx/page-data/cuenta-debito-open-plus/page-data.json"
     url_html = "https://www.openbank.mx/cuenta-debito-open-plus"
-    # UA real: NUNCA usar la UA por defecto de Chromium headless ("HeadlessChrome"),
-    # el anti-bot de Openbank (Akamai/Santander) la bloquea al instante.
     UA_REAL = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
                "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
- 
+
     def _extraer_tasa(texto):
         """Busca la tasa principal (apartado de $0 a $40,000) en el texto/JSON. Retorna float o None."""
         # Prioridad 1: titular exacto -> "hasta 13% de rendimiento anual fijo"
@@ -141,8 +139,45 @@ def obtener_tasa_openbank(browser=None):
                 if 5 <= val <= 20:
                     return val
         return None
- 
-    # ===== Intento 1: Playwright con contexto + UA real (clave para evitar el bloqueo) =====
+
+    # Forzar gzip/deflate: CloudFront sirve este JSON en brotli ('br') si se negocia,
+    # y requests no lo decodifica si falta el paquete 'brotli' -> response.text queda
+    # en bytes binarios ilegibles y el regex devuelve None (la causa del null).
+    headers_ob = {
+        "User-Agent": UA_REAL,
+        "Accept": "application/json, text/html, */*",
+        "Accept-Language": "es-MX,es;q=0.9,en;q=0.8",
+        "Accept-Encoding": "gzip, deflate",
+        "Referer": "https://www.openbank.mx/",
+    }
+
+    # ===== Intento 1: requests al JSON público (rápido y fiable, sin anti-bot) =====
+    for intento in range(2):
+        try:
+            response = requests.get(url_json, headers=headers_ob, timeout=20)
+            print(f"Openbank requests JSON status: {response.status_code} "
+                  f"(enc={response.headers.get('content-encoding')})")
+            if response.status_code == 200:
+                tasa = _extraer_tasa(response.text)
+                if tasa:
+                    print(f"Openbank requests JSON: {tasa}%")
+                    return tasa
+        except Exception as e:
+            print(f"Error Openbank requests JSON (intento {intento + 1}):", e)
+
+    # ===== Intento 2: requests a la página HTML del producto =====
+    try:
+        response = requests.get(url_html, headers=headers_ob, timeout=20)
+        print(f"Openbank requests HTML status: {response.status_code}")
+        if response.status_code == 200:
+            tasa = _extraer_tasa(response.text)
+            if tasa:
+                print(f"Openbank requests HTML: {tasa}%")
+                return tasa
+    except Exception as e:
+        print("Error Openbank requests HTML:", e)
+
+    # ===== Intento 3: Playwright (fallback si requests está bloqueado por IP) =====
     if browser:
         context = None
         try:
@@ -153,40 +188,31 @@ def obtener_tasa_openbank(browser=None):
                 extra_http_headers={"Accept-Language": "es-MX,es;q=0.9,en;q=0.8"},
             )
             page = context.new_page()
-            # Homepage primero para que Akamai emita las cookies de sesión
-            print("Openbank: visitando homepage para cookies...")
             page.goto("https://www.openbank.mx/", timeout=45000, wait_until="domcontentloaded")
             page.wait_for_timeout(3000)
- 
-            # Cargar el JSON desde el contexto del navegador (ya con cookies)
-            print("Openbank: intentando JSON via Playwright fetch...")
-            try:
-                json_resp = page.evaluate("""async () => {
-                    const r = await fetch('/page-data/cuenta-debito-open-plus/page-data.json',
-                                          {headers: {'Accept': 'application/json'}});
-                    return {status: r.status, text: r.ok ? await r.text() : ''};
-                }""")
-                print(f"Openbank Playwright fetch JSON status: {json_resp['status']}")
-                if json_resp['status'] == 200 and json_resp['text']:
-                    tasa = _extraer_tasa(json_resp['text'])
-                    if tasa:
-                        print(f"Openbank via Playwright JSON fetch: {tasa}%")
-                        return tasa
-            except Exception as e:
-                print(f"Openbank Playwright fetch JSON error: {e}")
- 
-            # Fallback: navegar a la página del producto y leer el texto renderizado
-            print("Openbank: navegando a página de producto...")
-            page.goto(url_html, timeout=45000, wait_until="networkidle")
+
+            # El navegador SÍ decodifica brotli de forma transparente
+            json_resp = page.evaluate("""async () => {
+                const r = await fetch('/page-data/cuenta-debito-open-plus/page-data.json',
+                                      {headers: {'Accept': 'application/json'}});
+                return {status: r.status, text: r.ok ? await r.text() : ''};
+            }""")
+            print(f"Openbank Playwright fetch JSON status: {json_resp['status']}")
+            if json_resp['status'] == 200 and json_resp['text']:
+                tasa = _extraer_tasa(json_resp['text'])
+                if tasa:
+                    print(f"Openbank Playwright JSON: {tasa}%")
+                    return tasa
+
+            page.goto(url_html, timeout=45000, wait_until="domcontentloaded")
             page.wait_for_timeout(3000)
             for _ in range(3):
                 page.mouse.wheel(0, 1500)
                 page.wait_for_timeout(800)
             contenido = page.locator("body").inner_text()
-            print(f"Openbank Playwright texto: {len(contenido)} chars")
             tasa = _extraer_tasa(contenido)
             if tasa:
-                print(f"Openbank Playwright resultado: {tasa}%")
+                print(f"Openbank Playwright HTML: {tasa}%")
                 return tasa
         except Exception as e:
             print("Error Openbank Playwright:", e)
@@ -196,25 +222,7 @@ def obtener_tasa_openbank(browser=None):
                     context.close()
                 except Exception:
                     pass
- 
-    # ===== Intento 2: requests JSON (funciona fuera de GitHub Actions / IPs no bloqueadas) =====
-    try:
-        headers_ob = {
-            "User-Agent": UA_REAL,
-            "Accept": "application/json, text/html, */*",
-            "Accept-Language": "es-MX,es;q=0.9,en;q=0.8",
-            "Referer": "https://www.openbank.mx/",
-        }
-        response = requests.get(url_json, headers=headers_ob, timeout=15)
-        print(f"Openbank requests JSON status: {response.status_code}")
-        if response.status_code == 200:
-            tasa = _extraer_tasa(response.text)
-            if tasa:
-                print(f"Openbank requests JSON: {tasa}%")
-                return tasa
-    except Exception as e:
-        print("Error Openbank requests:", e)
- 
+
     print("WARN: Openbank — todos los métodos fallaron")
     return None
  
