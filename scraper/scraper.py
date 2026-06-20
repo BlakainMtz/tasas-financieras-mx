@@ -4,7 +4,7 @@ import re
 import requests
 from datetime import datetime, timezone
 from playwright.sync_api import sync_playwright
-
+ 
 # =========================
 # CONFIGURACIÓN
 # =========================
@@ -18,7 +18,7 @@ SERIES_CETES = {
     "1_ano": "SF43945"
 }
 UA = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"}
-
+ 
 # =========================
 # FUNCIÓN CETES (BANXICO API)
 # =========================
@@ -34,7 +34,7 @@ def obtener_tasa(serie_id):
     except Exception as e:
         print(f"Error en serie {serie_id}:", e)
     return None
-
+ 
 # =========================
 # FUNCIÓN BONDDIA (scraping HTML)
 # =========================
@@ -49,7 +49,7 @@ def obtener_tasa_bonddia():
     except Exception as e:
         print("Error obteniendo BONDDIA:", e)
     return None
-
+ 
 # =========================
 # FUNCIÓN NU (Playwright)
 # =========================
@@ -66,11 +66,11 @@ def obtener_tasas_nu(browser):
         page.wait_for_timeout(2000)
         contenido = page.locator("body").inner_text()
         page.close()
-
+ 
         def extraer(label):
             match = re.search(rf'({label}.{{0,80}}?(\d+\.\d+)\s*%)', contenido, re.IGNORECASE | re.DOTALL)
             return round(float(match.group(2)), 2) if match else None
-
+ 
         tasas = {
             "a_la_vista": extraer(r"a la vista"),
             "1_semana": extraer(r"7 días"),
@@ -84,7 +84,7 @@ def obtener_tasas_nu(browser):
     except Exception as e:
         print("Error con NU:", e)
     return {"a_la_vista": None, "1_semana": None, "1_mes": None, "3_meses": None, "6_meses": None, "cajita_turbo": None}
-
+ 
 # =========================
 # FUNCIÓN DIDICUENTA (scraping HTML)
 # =========================
@@ -100,97 +100,107 @@ def obtener_tasa_didi():
     except Exception as e:
         print("Error obteniendo DIDI:", e)
     return None
-
+ 
 # =========================
 # FUNCIÓN OPENBANK (JSON endpoint)
 # =========================
 def obtener_tasa_openbank(browser=None):
     url_json = "https://www.openbank.mx/page-data/cuenta-debito-open-plus/page-data.json"
     url_html = "https://www.openbank.mx/cuenta-debito-open-plus"
-
+    # UA real: NUNCA usar la UA por defecto de Chromium headless ("HeadlessChrome"),
+    # el anti-bot de Openbank (Akamai/Santander) la bloquea al instante.
+    UA_REAL = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+               "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+ 
     def _extraer_tasa(texto):
-        """Busca tasa de rendimiento en texto. Retorna float o None."""
-        # Prioridad 1: "hasta X% de rendimiento"
+        """Busca la tasa principal (apartado de $0 a $40,000) en el texto/JSON. Retorna float o None."""
+        # Prioridad 1: titular exacto -> "hasta 13% de rendimiento anual fijo"
+        m = re.search(r'hasta\s+(\d+(?:\.\d+)?)\s*%\s*de\s*rendimiento\s*anual\s*fijo', texto, re.IGNORECASE)
+        if m:
+            val = float(m.group(1))
+            if 5 <= val <= 20:
+                return val
+        # Prioridad 2: tabla -> "Primeros $40,000 ... 13%"
+        m = re.search(r'[Pp]rimeros\s*\$?\s*40[,.]?000[^%]{0,60}?(\d+(?:\.\d+)?)\s*%', texto)
+        if m:
+            val = float(m.group(1))
+            if 5 <= val <= 20:
+                return val
+        # Prioridad 3: "hasta X% de rendimiento"
         m = re.search(r'hasta\s+(\d+(?:\.\d+)?)\s*%\s*de\s*rendimiento', texto, re.IGNORECASE)
         if m:
             val = float(m.group(1))
             if 5 <= val <= 20:
                 return val
-        # Prioridad 2: "X% de rendimiento"
-        m2 = re.search(r'(\d+(?:\.\d+)?)\s*%\s*de\s*rendimiento', texto, re.IGNORECASE)
-        if m2:
-            val = float(m2.group(1))
-            if 5 <= val <= 20:
-                return val
-        # Prioridad 3: "Gana X% de rendimiento" o "rendimiento anual"
-        m3 = re.search(r'[Gg]ana\s+(?:hasta\s+)?(\d+(?:\.\d+)?)\s*%', texto)
-        if m3:
-            val = float(m3.group(1))
-            if 5 <= val <= 20:
-                return val
-        # Prioridad 4: porcentajes en rango típico de Openbank
-        matches = re.findall(r'(\d+(?:\.\d+)?)\s*%', texto)
-        valores = [float(m) for m in matches if 10 <= float(m) <= 16]
-        if valores:
-            from collections import Counter
-            conteo = Counter(valores)
-            # El valor que más se repite es probablemente la tasa principal
-            return conteo.most_common(1)[0][0]
+        # Prioridad 4: "Gana X%" / "X% de rendimiento"
+        for patron in (r'[Gg]ana\s+(?:hasta\s+)?(\d+(?:\.\d+)?)\s*%',
+                       r'(\d+(?:\.\d+)?)\s*%\s*de\s*rendimiento'):
+            m = re.search(patron, texto, re.IGNORECASE)
+            if m:
+                val = float(m.group(1))
+                if 5 <= val <= 20:
+                    return val
         return None
-
-    # ===== Intento 1: Playwright (prioridad — requests siempre da 403 desde GitHub Actions) =====
+ 
+    # ===== Intento 1: Playwright con contexto + UA real (clave para evitar el bloqueo) =====
     if browser:
+        context = None
         try:
-            page = browser.new_page()
-            # Visitar homepage primero para establecer cookies/sesión
+            context = browser.new_context(
+                user_agent=UA_REAL,
+                locale="es-MX",
+                viewport={"width": 1366, "height": 768},
+                extra_http_headers={"Accept-Language": "es-MX,es;q=0.9,en;q=0.8"},
+            )
+            page = context.new_page()
+            # Homepage primero para que Akamai emita las cookies de sesión
             print("Openbank: visitando homepage para cookies...")
-            page.goto("https://www.openbank.mx/", timeout=30000)
-            page.wait_for_load_state("domcontentloaded", timeout=10000)
-            page.wait_for_timeout(2000)
-
-            # Intentar cargar el JSON desde el contexto del navegador (bypass 403)
+            page.goto("https://www.openbank.mx/", timeout=45000, wait_until="domcontentloaded")
+            page.wait_for_timeout(3000)
+ 
+            # Cargar el JSON desde el contexto del navegador (ya con cookies)
             print("Openbank: intentando JSON via Playwright fetch...")
             try:
                 json_resp = page.evaluate("""async () => {
-                    const r = await fetch('/page-data/cuenta-debito-open-plus/page-data.json');
-                    if (!r.ok) return {status: r.status, text: ''};
-                    return {status: r.status, text: await r.text()};
+                    const r = await fetch('/page-data/cuenta-debito-open-plus/page-data.json',
+                                          {headers: {'Accept': 'application/json'}});
+                    return {status: r.status, text: r.ok ? await r.text() : ''};
                 }""")
                 print(f"Openbank Playwright fetch JSON status: {json_resp['status']}")
                 if json_resp['status'] == 200 and json_resp['text']:
                     tasa = _extraer_tasa(json_resp['text'])
                     if tasa:
                         print(f"Openbank via Playwright JSON fetch: {tasa}%")
-                        page.close()
                         return tasa
             except Exception as e:
                 print(f"Openbank Playwright fetch JSON error: {e}")
-
-            # Navegar a la página del producto
+ 
+            # Fallback: navegar a la página del producto y leer el texto renderizado
             print("Openbank: navegando a página de producto...")
-            page.goto(url_html, timeout=45000)
-            page.wait_for_load_state("domcontentloaded", timeout=15000)
-            page.wait_for_timeout(5000)
-            # Scroll para cargar contenido lazy
+            page.goto(url_html, timeout=45000, wait_until="networkidle")
+            page.wait_for_timeout(3000)
             for _ in range(3):
                 page.mouse.wheel(0, 1500)
-                page.wait_for_timeout(1000)
+                page.wait_for_timeout(800)
             contenido = page.locator("body").inner_text()
             print(f"Openbank Playwright texto: {len(contenido)} chars")
-            if len(contenido) > 600:
-                print("Openbank Playwright preview:", repr(contenido[:300]))
-            page.close()
             tasa = _extraer_tasa(contenido)
             if tasa:
                 print(f"Openbank Playwright resultado: {tasa}%")
                 return tasa
         except Exception as e:
             print("Error Openbank Playwright:", e)
-
-    # ===== Intento 2: requests JSON (funciona fuera de GitHub Actions) =====
+        finally:
+            if context:
+                try:
+                    context.close()
+                except Exception:
+                    pass
+ 
+    # ===== Intento 2: requests JSON (funciona fuera de GitHub Actions / IPs no bloqueadas) =====
     try:
         headers_ob = {
-            "User-Agent": UA["User-Agent"],
+            "User-Agent": UA_REAL,
             "Accept": "application/json, text/html, */*",
             "Accept-Language": "es-MX,es;q=0.9,en;q=0.8",
             "Referer": "https://www.openbank.mx/",
@@ -204,10 +214,10 @@ def obtener_tasa_openbank(browser=None):
                 return tasa
     except Exception as e:
         print("Error Openbank requests:", e)
-
+ 
     print("WARN: Openbank — todos los métodos fallaron")
     return None
-
+ 
 # =========================
 # FUNCIÓN MERCADO PAGO (requests + Playwright fallback)
 # Tasa más alta condicionada
@@ -225,7 +235,7 @@ def obtener_tasa_mercadopago(browser=None):
             return float(max(valores))
     except Exception as e:
         print("Mercado Pago requests falló:", e)
-
+ 
     # Intento 2: Playwright
     if browser:
         try:
@@ -247,7 +257,7 @@ def obtener_tasa_mercadopago(browser=None):
         except Exception as e:
             print("Error Mercado Pago Playwright:", e)
     return None
-
+ 
 # =========================
 # FUNCIÓN REVOLUT (requests + Playwright fallback)
 # =========================
@@ -265,7 +275,7 @@ def obtener_tasa_revolut(browser=None):
             return max(enteros) if enteros else max(valores)
     except Exception as e:
         print("Revolut requests falló:", e)
-
+ 
     # Intento 2: Playwright
     if browser:
         try:
@@ -290,7 +300,7 @@ def obtener_tasa_revolut(browser=None):
         except Exception as e:
             print("Error Revolut Playwright:", e)
     return None
-
+ 
 # =========================
 # FUNCIÓN MIFEL (scraping HTML / JSON)
 # =========================
@@ -311,7 +321,7 @@ def obtener_tasa_mifel():
             return max(valores)
     except Exception as e:
         print("Error Mifel (info):", e)
-
+ 
     # Fallback: página principal de cuenta digital
     try:
         url2 = "https://www.mifel.com.mx/personas/cuentas/cuenta-digital"
@@ -325,7 +335,7 @@ def obtener_tasa_mifel():
     except Exception as e:
         print("Error Mifel (digital):", e)
     return None
-
+ 
 # =========================
 # FUNCIÓN SUPERTASAS (scraping HTML)
 # Las tasas están directamente en el HTML
@@ -338,7 +348,7 @@ def _parsear_texto_supertasas(texto):
         texto, re.IGNORECASE
     )
     print("Supertasas pares encontrados:", pares)
-
+ 
     tasas_map = {}
     for tasa_str, label in pares:
         label_lower = label.lower()
@@ -354,7 +364,7 @@ def _parsear_texto_supertasas(texto):
                 tasas_map.setdefault('6_meses', tasa)
             elif 'plazo de 364' in label_lower and 'interes' not in label_lower:
                 tasas_map.setdefault('1_ano', tasa)
-
+ 
     return {
         "a_la_vista": tasas_map.get('a_la_vista'),
         "1_mes": tasas_map.get('1_mes'),
@@ -362,22 +372,22 @@ def _parsear_texto_supertasas(texto):
         "6_meses": tasas_map.get('6_meses'),
         "1_ano": tasas_map.get('1_ano')
     }
-
+ 
 def obtener_tasas_supertasas(browser=None):
     url = "https://supertasas.com/"
     resultado_vacio = {"a_la_vista": None, "1_mes": None, "3_meses": None, "6_meses": None, "1_ano": None}
-
+ 
     # Intento 1: requests + strip tags
     try:
         response = requests.get(url, headers=UA, timeout=10)
         response.raise_for_status()
         html = response.text
-
+ 
         # Limpiar HTML: quitar tags para obtener texto plano
         texto = re.sub(r'<[^>]+>', '\n', html)
         texto = re.sub(r'&[^;]+;', ' ', texto)
         texto = re.sub(r'\n{2,}', '\n', texto)
-
+ 
         tasas = _parsear_texto_supertasas(texto)
         if any(v is not None for v in tasas.values()):
             print("Supertasas (requests) detectadas:", tasas)
@@ -385,7 +395,7 @@ def obtener_tasas_supertasas(browser=None):
         print("Supertasas requests: no se encontraron tasas, probando Playwright...")
     except Exception as e:
         print("Error Supertasas requests:", e)
-
+ 
     # Intento 2: Playwright (texto renderizado limpio)
     if browser:
         try:
@@ -404,23 +414,23 @@ def obtener_tasas_supertasas(browser=None):
             return tasas
         except Exception as e:
             print("Error Supertasas Playwright:", e)
-
+ 
     return resultado_vacio
-
+ 
 # =========================
 # FUNCIÓN FINSUS (scraping HTML)
 # Las tasas están en el simulador del HTML
 # =========================
 def obtener_tasas_finsus(browser=None):
     url = "https://finsus.mx/personas/inversiones"
-
+ 
     def parsear_finsus(texto):
         """Intenta extraer pares monto-tasa del texto de Finsus."""
         # Método 1: regex directo
         pares = re.findall(r'\$([\d,]+\.\d+)\s+(\d+\.\d+)\s*%', texto)
         if pares:
             return pares
-
+ 
         # Método 2: line-by-line (robusto contra whitespace variado)
         lines = [l.strip() for l in texto.split('\n') if l.strip()]
         pares = []
@@ -437,7 +447,7 @@ def obtener_tasas_finsus(browser=None):
         if pares:
             print(f"Finsus line-by-line: {len(pares)} pares encontrados")
         return pares
-
+ 
     # Intento 1: requests
     html = None
     pares = []
@@ -449,7 +459,7 @@ def obtener_tasas_finsus(browser=None):
         print(f"Finsus requests: {len(pares)} pares encontrados")
     except Exception as e:
         print("Finsus requests falló:", e)
-
+ 
     # Intento 2: si no hay pares, usar Playwright
     if not pares and browser:
         try:
@@ -474,18 +484,18 @@ def obtener_tasas_finsus(browser=None):
             print(f"Finsus Playwright: {len(pares)} pares encontrados")
         except Exception as e:
             print("Error Finsus Playwright:", e)
-
+ 
     if not html:
         return {"a_la_vista": None, "7_dias": None, "1_mes": None, "3_meses": None, "6_meses": None, "1_ano": None, "tasa_principal": None}
-
+ 
     try:
         print("Finsus pares monto-tasa:", pares[:12])
-
+ 
         # Detectar el monto de inversión default desde el GAT section
         # "Rendimiento X.XX% anual" con plazo seleccionado
         gat_match = re.search(r'GAT\s*NOMINAL\s*(\d+\.\d+)%', html)
         plazo_sel_match = re.search(r'Selecciona un plazo\s*\n?\s*([\d,]+)\s*d', html)
-
+ 
         # Calcular plazo real: plazo = monto * 360 / (principal * tasa/100)
         # Primero necesitamos el principal. Usamos el par conocido del GAT:
         # Si el plazo seleccionado es 360 días con GAT 8.69%, y el monto es $43,450
@@ -501,7 +511,7 @@ def obtener_tasas_finsus(browser=None):
                     principal = round(monto * 360 * 100 / (plazo_sel * gat_tasa))
                     print(f"Finsus principal detectado: ${principal:,.0f}")
                     break
-
+ 
         tasas_por_plazo = {}
         if pares:
             for monto_str, tasa_str in pares:
@@ -518,9 +528,9 @@ def obtener_tasas_finsus(browser=None):
                     tasas_por_plazo[plazo_cercano] = tasa
         else:
             print("Finsus: no se encontraron pares monto-tasa")
-
+ 
         print("Finsus tasas por plazo:", tasas_por_plazo)
-
+ 
         # Hero tasa como tasa_principal
         hero_match = re.search(r'[Gg]enera\s*(\d+\.\d+)%', html)
         meta_match = re.search(r'tasa del (\d+\.\d+)%', html, re.IGNORECASE)
@@ -529,7 +539,7 @@ def obtener_tasas_finsus(browser=None):
             tasa_principal = round(float(hero_match.group(1)), 2)
         elif meta_match:
             tasa_principal = round(float(meta_match.group(1)), 2)
-
+ 
         # Obtener tasa a la vista desde la página de cuenta/ahorro
         tasa_vista = None
         try:
@@ -554,7 +564,7 @@ def obtener_tasas_finsus(browser=None):
             print(f"Finsus cuenta a la vista: {tasa_vista}%")
         except Exception as e:
             print("Error Finsus cuenta:", e)
-
+ 
         tasas = {
             "a_la_vista": tasa_vista,
             "7_dias": tasas_por_plazo.get(7),
@@ -569,13 +579,13 @@ def obtener_tasas_finsus(browser=None):
     except Exception as e:
         print("Error Finsus:", e)
     return {"a_la_vista": None, "7_dias": None, "1_mes": None, "3_meses": None, "6_meses": None, "1_ano": None, "tasa_principal": None}
-
+ 
 # =========================
 # FUNCIÓN KLAR (requests + Playwright fallback)
 # =========================
 def obtener_tasa_klar(browser=None):
     """Extrae tasas de Klar desde su tabla de comparación de rendimientos.
-
+ 
     La página /inversion tiene una tabla estructurada con tasas por plazo:
     - Klar regular: Cuenta 3%, Flexible 6%, Fija 7d 6.10% ... 365d 6.50%
     - Klar Plus: Cuenta 5%, Flexible 8%, Fija 7d 8.10% ... 365d 8.50%
@@ -590,13 +600,13 @@ def obtener_tasa_klar(browser=None):
         texto_raw = response.text
         texto = re.sub(r'<[^>]+>', '\n', texto_raw)
         texto = re.sub(r'\n{2,}', '\n', texto)
-
+ 
         # Extraer tasa máxima del hero: "Inversión Max: 15% de rendimiento"
         tasa_max = None
         max_match = re.search(r'Inversión Max[:\s]*(\d+(?:\.\d+)?)\s*%', texto, re.IGNORECASE)
         if max_match:
             tasa_max = float(max_match.group(1))
-
+ 
         # Fallback: buscar "hasta X% de rendimiento anual"
         if not tasa_max:
             hasta_match = re.search(r'hasta\s+(\d+(?:\.\d+)?)\s*%\s*de\s*rendimiento', texto, re.IGNORECASE)
@@ -604,7 +614,7 @@ def obtener_tasa_klar(browser=None):
                 val = float(hasta_match.group(1))
                 if 8 <= val <= 16:
                     tasa_max = val
-
+ 
         # Extraer tasas por plazo — usar findall para obtener TODAS las ocurrencias
         # La tabla tiene dos secciones: Klar regular (primera) y Klar Plus/Platino (segunda)
         # Siempre tomamos la MAYOR tasa (Plus/Platino)
@@ -621,17 +631,17 @@ def obtener_tasa_klar(browser=None):
             if matches:
                 # Tomar la más alta (Plus/Platino)
                 tasas_plazo[clave] = max(float(m) for m in matches)
-
+ 
         # Tasa flexible: tomar la mayor (Plus = 8%)
         flex_matches = re.findall(r'Inversión Flexible\s*\n\s*(\d+(?:\.\d+)?)\s*%', texto)
         if not flex_matches:
             flex_matches = re.findall(r'Inversiones\s*\n\s*(\d+(?:\.\d+)?)\s*%', texto)
         tasa_flexible = max(float(m) for m in flex_matches) if flex_matches else None
-
+ 
         # Cuenta: tomar la mayor (Plus = 5%)
         cuenta_matches = re.findall(r'Cuenta\s*\n\s*(\d+(?:\.\d+)?)\s*%', texto)
         tasa_cuenta = max(float(m) for m in cuenta_matches) if cuenta_matches else None
-
+ 
         # a_la_vista = tasa_max (Inversión Max 15%) ya que es disponible y el user quiere la mayor
         resultado = {
             "a_la_vista": tasa_max,
@@ -642,10 +652,10 @@ def obtener_tasa_klar(browser=None):
         }
         print("Klar resultado:", resultado)
         return resultado
-
+ 
     except Exception as e:
         print("Error Klar:", e)
-
+ 
     # Fallback: Playwright (parsea tabla completa desde texto renderizado)
     if browser:
         try:
@@ -658,7 +668,7 @@ def obtener_tasa_klar(browser=None):
                 page.wait_for_timeout(500)
             contenido = page.locator("body").inner_text()
             page.close()
-
+ 
             tasa_max = None
             max_match = re.search(r'Inversión Max[:\s]*(\d+(?:\.\d+)?)\s*%', contenido, re.IGNORECASE)
             if max_match:
@@ -667,7 +677,7 @@ def obtener_tasa_klar(browser=None):
                 hasta_match = re.search(r'hasta\s+(\d+(?:\.\d+)?)\s*%\s*de\s*rendimiento', contenido, re.IGNORECASE)
                 if hasta_match and 8 <= float(hasta_match.group(1)) <= 16:
                     tasa_max = float(hasta_match.group(1))
-
+ 
             # Tomar siempre las tasas Plus/Platino (mayor)
             tasas_plazo = {}
             plazo_patterns = [
@@ -681,10 +691,10 @@ def obtener_tasa_klar(browser=None):
                 matches = re.findall(patron, contenido)
                 if matches:
                     tasas_plazo[clave] = max(float(m) for m in matches)
-
+ 
             flex_matches = re.findall(r'(?:Inversión Flexible|Inversiones)\s*\n\s*(\d+(?:\.\d+)?)\s*%', contenido)
             tasa_flexible = max(float(m) for m in flex_matches) if flex_matches else None
-
+ 
             resultado = {
                 "a_la_vista": tasa_max,
                 "tasa_max": tasa_max,
@@ -695,34 +705,34 @@ def obtener_tasa_klar(browser=None):
             return resultado
         except Exception as e:
             print("Error Klar Playwright:", e)
-
+ 
     return {"a_la_vista": None, "tasa_max": None}
-
+ 
 # =========================
 # MAIN
 # =========================
 def main():
     os.makedirs("data", exist_ok=True)
-
+ 
     # Scrapers que funcionan con requests (sin Playwright)
     mp_tasa = obtener_tasa_mercadopago()
     revolut_tasa = obtener_tasa_revolut()
     klar_tasas = obtener_tasa_klar()
-
+ 
     # Scrapers que necesitan Playwright (React SPAs o sitios que bloquean requests)
     with sync_playwright() as p:
         browser = p.chromium.launch(
             headless=True,
             args=["--disable-blink-features=AutomationControlled"]
         )
-
+ 
         nu_tasas = obtener_tasas_nu(browser)
         finsus_tasas = obtener_tasas_finsus(browser)
         supertasas = obtener_tasas_supertasas(browser)
         openbank_tasa = obtener_tasa_openbank(browser)
-
+ 
         browser.close()
-
+ 
     data = {
         "last_update": datetime.now(timezone.utc).isoformat(),
         "CETES": {
@@ -754,12 +764,12 @@ def main():
         "FINSUS": finsus_tasas,
         "KLAR": klar_tasas
     }
-
+ 
     with open(DATA_PATH, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2, ensure_ascii=False)
-
+ 
     print("✅ Todas las tasas actualizadas correctamente")
     print(json.dumps(data, indent=2, ensure_ascii=False))
-
+ 
 if __name__ == "__main__":
     main()
