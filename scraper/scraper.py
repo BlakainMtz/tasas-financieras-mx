@@ -101,6 +101,11 @@ def obtener_tasa_didi():
         print("Error obteniendo DIDI:", e)
     return None
  
+# Valor de respaldo para Openbank: desde GitHub Actions, CloudFront responde 403
+# (bloqueo por IP/geo de datacenter) y el scrape no recibe datos. Actualiza este
+# número a mano cuando Openbank cambie su tasa del apartado de $0 a $40,000.
+OPENBANK_FALLBACK = 13.0
+
 # =========================
 # FUNCIÓN OPENBANK (JSON endpoint)
 # =========================
@@ -141,8 +146,7 @@ def obtener_tasa_openbank(browser=None):
         return None
 
     # Forzar gzip/deflate: CloudFront sirve este JSON en brotli ('br') si se negocia,
-    # y requests no lo decodifica si falta el paquete 'brotli' -> response.text queda
-    # en bytes binarios ilegibles y el regex devuelve None (la causa del null).
+    # y requests no lo decodifica si falta el paquete 'brotli'.
     headers_ob = {
         "User-Agent": UA_REAL,
         "Accept": "application/json, text/html, */*",
@@ -151,7 +155,7 @@ def obtener_tasa_openbank(browser=None):
         "Referer": "https://www.openbank.mx/",
     }
 
-    # ===== Intento 1: requests al JSON público (rápido y fiable, sin anti-bot) =====
+    # ===== Intento 1: requests al JSON público (funciona desde IP de México) =====
     for intento in range(2):
         try:
             response = requests.get(url_json, headers=headers_ob, timeout=20)
@@ -162,6 +166,10 @@ def obtener_tasa_openbank(browser=None):
                 if tasa:
                     print(f"Openbank requests JSON: {tasa}%")
                     return tasa
+            elif response.status_code == 403:
+                # Bloqueo de CloudFront por IP/geo (típico en GitHub Actions): inútil reintentar
+                print("Openbank: 403 de CloudFront (bloqueo por IP/geo)")
+                break
         except Exception as e:
             print(f"Error Openbank requests JSON (intento {intento + 1}):", e)
 
@@ -177,7 +185,7 @@ def obtener_tasa_openbank(browser=None):
     except Exception as e:
         print("Error Openbank requests HTML:", e)
 
-    # ===== Intento 3: Playwright (fallback si requests está bloqueado por IP) =====
+    # ===== Intento 3: Playwright (fallback) =====
     if browser:
         context = None
         try:
@@ -191,7 +199,6 @@ def obtener_tasa_openbank(browser=None):
             page.goto("https://www.openbank.mx/", timeout=45000, wait_until="domcontentloaded")
             page.wait_for_timeout(3000)
 
-            # El navegador SÍ decodifica brotli de forma transparente
             json_resp = page.evaluate("""async () => {
                 const r = await fetch('/page-data/cuenta-debito-open-plus/page-data.json',
                                       {headers: {'Accept': 'application/json'}});
@@ -223,8 +230,9 @@ def obtener_tasa_openbank(browser=None):
                 except Exception:
                     pass
 
-    print("WARN: Openbank — todos los métodos fallaron")
-    return None
+    # ===== Respaldo: Openbank bloqueó la IP (GitHub Actions). Evita devolver null. =====
+    print(f"WARN: Openbank bloqueado/sin datos; usando OPENBANK_FALLBACK = {OPENBANK_FALLBACK}%")
+    return OPENBANK_FALLBACK
  
 # =========================
 # FUNCIÓN MERCADO PAGO (requests + Playwright fallback)
