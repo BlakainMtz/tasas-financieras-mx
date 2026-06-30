@@ -1,13 +1,13 @@
 {
-  "last_update": "2026-06-29T20:15:55.909025+00:00",
+  "last_update": "2026-06-30T20:17:17.383079+00:00",
   "CETES": {
-    "1_mes": 6.28,
-    "3_meses": 6.48,
-    "6_meses": 6.69,
+    "1_mes": 6.3,
+    "3_meses": 6.49,
+    "6_meses": 6.75,
     "1_ano": 7.12
   },
   "BONDDIA": {
-    "a_la_vista": 6.29
+    "a_la_vista": 6.38
   },
   "NU": {
     "a_la_vista": null,
