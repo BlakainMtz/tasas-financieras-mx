@@ -1,5 +1,5 @@
 {
-  "last_update": "2026-07-01T20:10:20.065134+00:00",
+  "last_update": "2026-07-02T19:49:22.635912+00:00",
   "CETES": {
     "1_mes": 6.3,
     "3_meses": 6.49,
@@ -7,15 +7,15 @@
     "1_ano": 7.12
   },
   "BONDDIA": {
-    "a_la_vista": 6.21
+    "a_la_vista": 6.42
   },
   "NU": {
     "a_la_vista": null,
-    "1_semana": null,
-    "1_mes": null,
-    "3_meses": null,
-    "6_meses": null,
-    "cajita_turbo": null
+    "1_semana": 6.55,
+    "1_mes": 6.6,
+    "3_meses": 6.7,
+    "6_meses": 6.8,
+    "cajita_turbo": 13.0
   },
   "DIDICUENTA": {
     "a_la_vista": 15.0
@@ -40,11 +40,11 @@
     "1_ano": null
   },
   "FINSUS": {
-    "a_la_vista": 7.08,
-    "7_dias": 7.09,
+    "a_la_vista": 7.01,
+    "7_dias": 7.01,
     "1_mes": 7.19,
-    "3_meses": 7.59,
-    "6_meses": 7.69,
+    "3_meses": 7.5,
+    "6_meses": 7.59,
     "1_ano": 8.69,
     "tasa_principal": 10.09
   },
