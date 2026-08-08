@@ -1,5 +1,5 @@
 {
-  "last_update": "2026-08-08T18:56:06.818706+00:00",
+  "last_update": "2026-08-08T19:12:54.672504+00:00",
   "CETES": {
     "1_mes": 6.17,
     "3_meses": 6.4,
@@ -21,7 +21,7 @@
     "a_la_vista": 15.0
   },
   "OPENBANK": {
-    "a_la_vista": 13.0
+    "a_la_vista": null
   },
   "MERCADOPAGO": {
     "a_la_vista": 12.0
@@ -58,5 +58,16 @@
     "3_meses": 8.3,
     "6_meses": 8.4,
     "1_ano": 8.5
+  },
+  "PLATA": {
+    "a_la_vista": 15.0,
+    "tasa_max": 15.0,
+    "flexible": 9.0,
+    "flexible_base": 7.0,
+    "ultra_promo": 15.0,
+    "1_mes": 9.0,
+    "3_meses": 9.25,
+    "6_meses": 9.5,
+    "1_ano": 11.0
   }
 }
