@@ -102,8 +102,18 @@ def obtener_tasa_didi():
     return None
 
 # =========================
-# FUNCIÓN OPENBANK (JSON endpoint)
+# FUNCIÓN OPENBANK (JSON endpoint + Playwright + respaldo verificado)
 # =========================
+# Respaldo verificado a mano (fuente: openbank.mx/cuenta-debito-open-plus).
+# El antibot de Santander/Akamai suele bloquear las IPs de GitHub Actions y la
+# UA headless, por lo que el scrape en vivo casi siempre falla y regresaba None.
+# Igual que con Banco Plata, si el scrape en vivo no obtiene datos se usa este valor.
+# ACTUALIZA a mano cuando Openbank cambie su oferta:
+#   - Open Plus: 13% anual fijo sobre los PRIMEROS $30,000 (excedente rinde menos)
+OPENBANK_FALLBACK = 13.0
+OPENBANK_TOPE = 30000  # solo informativo; el tope se muestra en la tabla del sitio
+
+
 def obtener_tasa_openbank(browser=None):
     url_json = "https://www.openbank.mx/page-data/cuenta-debito-open-plus/page-data.json"
     url_html = "https://www.openbank.mx/cuenta-debito-open-plus"
@@ -113,15 +123,15 @@ def obtener_tasa_openbank(browser=None):
                "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
 
     def _extraer_tasa(texto):
-        """Busca la tasa principal (apartado de $0 a $40,000) en el texto/JSON. Retorna float o None."""
+        """Busca la tasa principal (apartado hasta $30,000) en el texto/JSON. Retorna float o None."""
         # Prioridad 1: titular exacto -> "hasta 13% de rendimiento anual fijo"
         m = re.search(r'hasta\s+(\d+(?:\.\d+)?)\s*%\s*de\s*rendimiento\s*anual\s*fijo', texto, re.IGNORECASE)
         if m:
             val = float(m.group(1))
             if 5 <= val <= 20:
                 return val
-        # Prioridad 2: tabla -> "Primeros $40,000 ... 13%"
-        m = re.search(r'[Pp]rimeros\s*\$?\s*40[,.]?000[^%]{0,60}?(\d+(?:\.\d+)?)\s*%', texto)
+        # Prioridad 2: tabla -> "Primeros $30,000 ... 13%" (acepta 30 o 40 mil por si cambian)
+        m = re.search(r'[Pp]rimeros\s*\$?\s*(?:30|40)[,.]?000[^%]{0,60}?(\d+(?:\.\d+)?)\s*%', texto)
         if m:
             val = float(m.group(1))
             if 5 <= val <= 20:
@@ -157,7 +167,6 @@ def obtener_tasa_openbank(browser=None):
             print("Openbank: visitando homepage para cookies...")
             page.goto("https://www.openbank.mx/", timeout=45000, wait_until="domcontentloaded")
             page.wait_for_timeout(3000)
-
             # Cargar el JSON desde el contexto del navegador (ya con cookies)
             print("Openbank: intentando JSON via Playwright fetch...")
             try:
@@ -174,7 +183,6 @@ def obtener_tasa_openbank(browser=None):
                         return tasa
             except Exception as e:
                 print(f"Openbank Playwright fetch JSON error: {e}")
-
             # Fallback: navegar a la página del producto y leer el texto renderizado
             print("Openbank: navegando a página de producto...")
             page.goto(url_html, timeout=45000, wait_until="networkidle")
@@ -215,8 +223,10 @@ def obtener_tasa_openbank(browser=None):
     except Exception as e:
         print("Error Openbank requests:", e)
 
-    print("WARN: Openbank — todos los métodos fallaron")
-    return None
+    # ===== Respaldo: si todos los métodos en vivo fallaron, usar el valor verificado =====
+    print(f"WARN: Openbank — scrape en vivo falló; usando respaldo OPENBANK_FALLBACK = {OPENBANK_FALLBACK}%")
+    return OPENBANK_FALLBACK
+
 
 # =========================
 # FUNCIÓN MERCADO PAGO (requests + Playwright fallback)
