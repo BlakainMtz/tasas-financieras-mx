@@ -1,13 +1,13 @@
 {
-  "last_update": "2026-08-31T22:49:07.009755+00:00",
+  "last_update": "2026-09-01T21:01:19.635455+00:00",
   "CETES": {
-    "1_mes": 6.13,
-    "3_meses": 6.6,
-    "6_meses": 6.72,
-    "1_ano": 7.06
+    "1_mes": 6.49,
+    "3_meses": 6.54,
+    "6_meses": 6.69,
+    "1_ano": 7.0
   },
   "BONDDIA": {
-    "a_la_vista": 6.4
+    "a_la_vista": 6.81
   },
   "NU": {
     "a_la_vista": null,
@@ -24,7 +24,7 @@
     "a_la_vista": 13.0
   },
   "MERCADOPAGO": {
-    "a_la_vista": 12.0
+    "a_la_vista": 15.0
   },
   "REVOLUT": {
     "a_la_vista": 15.0
