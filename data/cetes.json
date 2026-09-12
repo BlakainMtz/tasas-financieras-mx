@@ -1,5 +1,5 @@
 {
-  "last_update": "2026-09-11T20:56:24.388071+00:00",
+  "last_update": "2026-09-12T04:30:59.125324+00:00",
   "CETES": {
     "1_mes": 6.25,
     "3_meses": 6.56,
@@ -7,7 +7,7 @@
     "1_ano": 7.0
   },
   "BONDDIA": {
-    "a_la_vista": 6.48
+    "a_la_vista": 6.38
   },
   "NU": {
     "a_la_vista": null,
@@ -21,7 +21,7 @@
     "a_la_vista": 15.0
   },
   "OPENBANK": {
-    "a_la_vista": 13.0
+    "a_la_vista": null
   },
   "MERCADOPAGO": {
     "a_la_vista": 15.0
@@ -33,11 +33,11 @@
     "a_la_vista": 10.0
   },
   "SUPERTASAS": {
-    "a_la_vista": null,
-    "1_mes": null,
-    "3_meses": null,
-    "6_meses": null,
-    "1_ano": null
+    "a_la_vista": 6.3,
+    "1_mes": 6.4,
+    "3_meses": 6.6,
+    "6_meses": 8.3,
+    "1_ano": 9.2
   },
   "FINSUS": {
     "a_la_vista": 7.01,
