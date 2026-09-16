@@ -902,6 +902,335 @@ def obtener_tasas_plata(browser=None):
     return resultado
  
 # =========================
+# FUNCIÓN STORI (PDF oficial de costos y comisiones)
+# =========================
+# Stori publica en un PDF oficial la TASA DE INTERÉS ANUAL FIJA (la tasa REAL,
+# no la GAT nominal). Esta es la fuente correcta según la regla editorial:
+# mostramos la "tasa de rendimiento anual fija", NUNCA la GAT nominal.
+# El PDF trae una tabla por plazo para "Stori Inversión Más":
+#     Plazo | Tasa fija | GAT Nominal | GAT Real
+#       30  |  6.83%    |   7.05%     |  2.75%
+#       60  | 14.14%    |  15.00%     | 10.39%   <- promo Stori Pro (restricciones)
+#       90  | 10.57%    |  11.00%     |  6.55%
+#      180  |  9.76%    |  10.00%     |  5.59%
+#      360  |  8.25%    |   8.25%     |  3.91%
+# Y para "Stori Apartados" (a la vista): tasa fija 7.00%.
+#
+# Ventaja: el PDF es estático y estable (no SPA), así que `requests` basta.
+# El parser toma SIEMPRE la primera columna numérica de cada fila (tasa fija),
+# ignorando las columnas de GAT. Si el PDF cambia de URL/versión, actualizar
+# STORI_PDF_URL y, como respaldo, STORI_FALLBACK.
+STORI_PDF_URL = ("https://www.storicard.com/files/stori-cuentamas/"
+                 "costos-y-comisiones-depositos.pdf?v=20260819")
+ 
+# Respaldo verificado a mano (PDF oficial, tasa fija anual — 12-ago-2026,
+# vigencia GAT 18-ago-2026 al 7-sep-2026). ACTUALIZA cuando cambie el PDF:
+STORI_FALLBACK = {
+    "a_la_vista": 7.00,   # Stori Apartados (rendimiento diario), tasa fija
+    "1_mes": 6.83,        # 30 días
+    "2_meses": 14.14,     # 60 días — PROMO exclusiva Stori Pro (restricciones)
+    "3_meses": 10.57,     # 90 días
+    "6_meses": 9.76,      # 180 días
+    "1_ano": 8.25,        # 360 días
+}
+ 
+ 
+def obtener_tasas_stori(browser=None):
+    """Extrae la TASA FIJA ANUAL (no GAT) de Stori desde su PDF oficial.
+ 
+    El PDF de "Costos y Comisiones" trae la tabla de Stori Inversión Más con
+    columnas [Plazo, Tasa fija, GAT Nominal, GAT Real]. Tomamos la Tasa fija
+    (primera columna numérica de cada fila). Si el PDF no se puede leer, se
+    usa STORI_FALLBACK.
+    """
+    import io
+    try:
+        # pdfplumber si está disponible; si no, pypdf; si no, respaldo.
+        headers = {"User-Agent": UA["User-Agent"], "Accept": "application/pdf,*/*"}
+        resp = requests.get(STORI_PDF_URL, headers=headers, timeout=20)
+        resp.raise_for_status()
+        pdf_bytes = resp.content
+ 
+        texto = ""
+        try:
+            import pdfplumber
+            with pdfplumber.open(io.BytesIO(pdf_bytes)) as pdf:
+                for pagina in pdf.pages:
+                    texto += (pagina.extract_text() or "") + "\n"
+        except Exception:
+            try:
+                from pypdf import PdfReader
+                lector = PdfReader(io.BytesIO(pdf_bytes))
+                for pagina in lector.pages:
+                    texto += (pagina.extract_text() or "") + "\n"
+            except Exception as e:
+                print("Stori: no se pudo extraer texto del PDF:", e)
+                texto = ""
+ 
+        if texto:
+            tasas = _parsear_texto_stori(texto)
+            # Validar que al menos tengamos la tasa a 1 año y una intermedia
+            if tasas.get("1_ano") and tasas.get("3_meses"):
+                print("Stori detectadas (PDF):", tasas)
+                return tasas
+            print("Stori: PDF leído pero parse incompleto; usando respaldo. Parcial:", tasas)
+    except Exception as e:
+        print("Error Stori PDF:", e)
+ 
+    print(f"WARN: Stori — scrape del PDF falló; usando STORI_FALLBACK")
+    return dict(STORI_FALLBACK)
+ 
+ 
+def _parsear_texto_stori(texto):
+    """Parsea la tabla de Stori Inversión Más: por cada plazo toma la TASA FIJA.
+ 
+    Estrategia robusta a dos formatos:
+      1) Filas de tabla:  '30 6.83% 7.05% 2.75%'  -> plazo=30, tasa_fija=6.83
+      2) Bloques por plazo con 'Tasa de rendimiento anual fija X%'.
+    """
+    resultado = {
+        "a_la_vista": None, "1_mes": None, "2_meses": None,
+        "3_meses": None, "6_meses": None, "1_ano": None,
+    }
+    plazo_a_clave = {30: "1_mes", 60: "2_meses", 90: "3_meses",
+                     180: "6_meses", 360: "1_ano"}
+ 
+    # --- Formato 1: filas "PLAZO TASA% GATNOM% GATREAL%" (3 porcentajes seguidos) ---
+    # Tomamos el PRIMER porcentaje de la fila (tasa fija anual).
+    for m in re.finditer(
+        r'(?m)^\s*(\d{2,3})\s+(\d+\.\d+)\s*%\s+(\d+\.\d+)\s*%\s+(\d+\.\d+)\s*%',
+        texto
+    ):
+        plazo = int(m.group(1))
+        tasa_fija = float(m.group(2))
+        clave = plazo_a_clave.get(plazo)
+        if clave and 3 <= tasa_fija <= 16:
+            resultado[clave] = tasa_fija
+ 
+    # --- Formato 2 (respaldo): "Plazo Stori Inversión + Ndías ... Tasa de rendimiento anual fija X%" ---
+    for m in re.finditer(
+        r'Inversi[oó]n\s*\+?\s*(\d{2,3})\s*d[ií]as.*?tasa\s+de\s+rendimiento\s+anual\s+fija\s+(\d+\.\d+)\s*%',
+        texto, re.IGNORECASE | re.DOTALL
+    ):
+        plazo = int(m.group(1))
+        tasa_fija = float(m.group(2))
+        clave = plazo_a_clave.get(plazo)
+        if clave and 3 <= tasa_fija <= 16 and resultado.get(clave) is None:
+            resultado[clave] = tasa_fija
+ 
+    # --- A la vista (Stori Apartados): "rendimiento diario ... Tasa de rendimiento anual fija 7.00%" ---
+    m = re.search(
+        r'(?:Apartados|rendimiento\s+diario).*?tasa\s+de\s+rendimiento\s+anual\s+fija\s+(\d+\.\d+)\s*%',
+        texto, re.IGNORECASE | re.DOTALL
+    )
+    if m:
+        val = float(m.group(1))
+        if 3 <= val <= 12:
+            resultado["a_la_vista"] = val
+ 
+    return resultado
+ 
+ 
+# =========================
+# FUNCIÓN KUBO FINANCIERO (respaldo verificado; su tabla oficial es SPA/JS)
+# =========================
+# La página oficial de tasas de kubo (ley-transparencia/kubo-plazofijo-tasas)
+# es una SPA que requiere JavaScript: un GET simple devuelve "activa JavaScript"
+# sin datos. Por eso, igual que Openbank/Plata, se usa un respaldo verificado a
+# mano y se intenta el scrape en vivo con Playwright (por si en el futuro la
+# tabla queda en el HTML renderizado).
+#
+# Tasas verificadas (Tasas.mx corte 8-sep-2026 + Expansión 24-jul-2026):
+#   - 3 meses (91 d): 11.00%
+#   - 1 año  (360 d): 12.00%   <- tasa máxima, muy por encima de CETES
+# kubo.ahorro (a la vista) rinde hasta 9%, pero su plazo fijo es lo destacable.
+# ACTUALIZA a mano cuando kubo cambie tasas.
+KUBO_TASAS_URL = "https://www.kubofinanciero.com/ley-transparencia/kubo-plazofijo-tasas"
+KUBO_FALLBACK = {
+    "a_la_vista": 9.00,   # kubo.ahorro, hasta 9% (disponibilidad inmediata)
+    "3_meses": 11.00,     # 91 días
+    "1_ano": 12.00,       # 360 días — mejor tasa
+}
+ 
+ 
+def obtener_tasas_kubo(browser=None):
+    """Obtiene tasas de kubo.plazofijo. Intenta Playwright (SPA) y cae al respaldo.
+ 
+    La tabla oficial vive en una SPA con JS; el scrape en vivo suele fallar desde
+    GitHub Actions, así que NUNCA regresa None: si no obtiene datos usa
+    KUBO_FALLBACK (patrón Openbank/Plata).
+    """
+    detectadas = {}
+    if browser:
+        context = None
+        try:
+            context = browser.new_context(
+                user_agent=UA["User-Agent"],
+                locale="es-MX",
+                viewport={"width": 1366, "height": 900},
+                extra_http_headers={"Accept-Language": "es-MX,es;q=0.9,en;q=0.8"},
+            )
+            page = context.new_page()
+            page.goto(KUBO_TASAS_URL, timeout=45000, wait_until="domcontentloaded")
+            # La tabla se monta por JS; esperar a que aparezca algún '%'
+            try:
+                page.wait_for_function(
+                    "() => /\\d+(\\.\\d+)?\\s*%/.test(document.body.innerText)",
+                    timeout=15000
+                )
+            except Exception:
+                print("Kubo: timeout esperando la tabla JS; leyendo lo que haya...")
+            page.wait_for_timeout(1500)
+            for _ in range(3):
+                page.mouse.wheel(0, 1200)
+                page.wait_for_timeout(400)
+            contenido = page.locator("body").inner_text()
+            print("Kubo Playwright texto:", len(contenido), "chars")
+            detectadas = _parsear_texto_kubo(contenido)
+            print("Kubo detectadas (Playwright):", detectadas)
+        except Exception as e:
+            print("Error Kubo Playwright:", e)
+        finally:
+            if context:
+                try:
+                    context.close()
+                except Exception:
+                    pass
+ 
+    # Overlay del scrape en vivo sobre el respaldo (solo pisa lo que sí detectó)
+    resultado = dict(KUBO_FALLBACK)
+    for k, v in detectadas.items():
+        if v is not None:
+            resultado[k] = v
+    if not detectadas:
+        print("WARN: Kubo sin datos en vivo; usando KUBO_FALLBACK completo")
+    print("Kubo resultado:", resultado)
+    return resultado
+ 
+ 
+def _parsear_texto_kubo(texto):
+    """Extrae de la tabla de kubo.plazofijo la tasa por plazo (28/91/182/365 d).
+ 
+    kubo lista filas 'PLAZO d  TASA%'. Mapea a las claves de la tabla.
+    Solo devuelve lo que encuentra (dict parcial); el resto lo pone el respaldo.
+    """
+    out = {}
+    # Pares "N días ... X%" (admite '91 días 11.00%' o '91 d 11%')
+    for m in re.finditer(r'(\d{2,3})\s*d[ií]?a?s?\s*[^%\d]{0,20}?(\d+(?:\.\d+)?)\s*%', texto, re.IGNORECASE):
+        dias = int(m.group(1))
+        tasa = float(m.group(2))
+        if not (3 <= tasa <= 16):
+            continue
+        if dias in (28, 30):
+            out.setdefault("1_mes", tasa)
+        elif dias in (90, 91):
+            out.setdefault("3_meses", tasa)
+        elif dias in (180, 182):
+            out.setdefault("6_meses", tasa)
+        elif dias in (360, 364, 365):
+            out.setdefault("1_ano", tasa)
+    return out
+ 
+ 
+# =========================
+# FUNCIÓN LEVA INVIERTE (home muestra "hasta 14%"; tasas por plazo en la app)
+# =========================
+# La home de levainvierte.com muestra el titular "hasta 14.00%" en el HTML
+# estático, pero las tasas por plazo viven en su calculadora/app (signup.*),
+# renderizadas por JS. Se scrapea el titular con requests y, para los plazos,
+# se usa un respaldo verificado (patrón Openbank/Plata/Kubo).
+#
+# Producto: Leva Invierte (SOFIPO Sociedad de Alternativas Económicas, SAE).
+# Monto mínimo de inversión: $20,000. Plazo fijo (sin liquidez a la vista).
+# Tasas verificadas (comparadores DeCeroalInfinito/Tasas.mx, ago-sep 2026):
+#   - 3 meses (90 d):  9.75%
+#   - 6 meses (180 d): 11.00%
+#   - 12 meses (360 d):13.25%
+#   - 24 meses (720 d):14.25%  <- tasa máxima (la que anuncia "hasta 14%+")
+# ACTUALIZA a mano cuando Leva cambie tasas.
+LEVA_URL = "https://levainvierte.com/"
+LEVA_FALLBACK = {
+    "tasa_max": 14.25,    # 24 meses — la más alta que anuncia
+    "3_meses": 9.75,      # 90 días
+    "6_meses": 11.00,     # 180 días
+    "1_ano": 13.25,       # 360 días
+    "2_anos": 14.25,      # 720 días
+}
+ 
+ 
+def obtener_tasas_leva(browser=None):
+    """Obtiene tasas de Leva Invierte. Titular por requests; plazos por respaldo.
+ 
+    NUNCA regresa None: si el titular no se puede leer, usa LEVA_FALLBACK.
+    Nota: Leva es plazo fijo, NO tiene tasa 'a la vista'.
+    """
+    tasa_titular = None
+    # ===== Intento: leer el titular "hasta X%" del HTML estático =====
+    try:
+        resp = requests.get(LEVA_URL, headers=UA, timeout=15)
+        resp.raise_for_status()
+        # Buscar "hasta 14.00%" / "hasta 14%" (titular del hero)
+        m = re.search(r'hasta\s+(\d+(?:\.\d+)?)\s*%', resp.text, re.IGNORECASE)
+        if m:
+            val = float(m.group(1))
+            if 8 <= val <= 16:
+                tasa_titular = val
+                print(f"Leva titular detectado: {tasa_titular}%")
+    except Exception as e:
+        print("Error Leva requests:", e)
+ 
+    # ===== Intento Playwright: leer la calculadora/productos (signup) =====
+    detectadas = {}
+    if browser:
+        try:
+            page = browser.new_page()
+            page.goto("https://signup.levainvierte.com/productos",
+                      timeout=30000, wait_until="domcontentloaded")
+            page.wait_for_timeout(3500)
+            for _ in range(3):
+                page.mouse.wheel(0, 1200)
+                page.wait_for_timeout(500)
+            contenido = page.locator("body").inner_text()
+            page.close()
+            detectadas = _parsear_texto_leva(contenido)
+            print("Leva detectadas (Playwright):", detectadas)
+        except Exception as e:
+            print("Error Leva Playwright:", e)
+ 
+    # Construir resultado: respaldo + overlay de lo detectado en vivo
+    resultado = dict(LEVA_FALLBACK)
+    for k, v in detectadas.items():
+        if v is not None:
+            resultado[k] = v
+    # Si el titular en vivo es mayor/menor, actualizar la tasa_max mostrada
+    if tasa_titular:
+        # el titular suele ser la de 24m; solo lo usamos si es coherente
+        resultado["tasa_max"] = max(resultado.get("tasa_max", 0), tasa_titular)
+    if not detectadas and not tasa_titular:
+        print("WARN: Leva sin datos en vivo; usando LEVA_FALLBACK completo")
+    print("Leva resultado:", resultado)
+    return resultado
+ 
+ 
+def _parsear_texto_leva(texto):
+    """Extrae pares plazo-tasa de la calculadora de Leva (si el JS los expone)."""
+    out = {}
+    for m in re.finditer(r'(\d{1,2})\s*meses?\s*[^%\d]{0,20}?(\d+(?:\.\d+)?)\s*%', texto, re.IGNORECASE):
+        meses = int(m.group(1))
+        tasa = float(m.group(2))
+        if not (8 <= tasa <= 16):
+            continue
+        if meses == 3:
+            out.setdefault("3_meses", tasa)
+        elif meses == 6:
+            out.setdefault("6_meses", tasa)
+        elif meses == 12:
+            out.setdefault("1_ano", tasa)
+        elif meses == 24:
+            out.setdefault("2_anos", tasa)
+    return out
+ 
+# =========================
 # MAIN
 # =========================
 def main():
@@ -924,6 +1253,9 @@ def main():
         supertasas = obtener_tasas_supertasas(browser)
         openbank_tasa = obtener_tasa_openbank(browser)
         plata_tasas = obtener_tasas_plata(browser)
+        stori_tasas = obtener_tasas_stori(browser)
+        kubo_tasas = obtener_tasas_kubo(browser)
+        leva_tasas = obtener_tasas_leva(browser)
  
         browser.close()
  
@@ -957,7 +1289,10 @@ def main():
         "SUPERTASAS": supertasas,
         "FINSUS": finsus_tasas,
         "KLAR": klar_tasas,
-        "PLATA": plata_tasas
+        "PLATA": plata_tasas,
+        "STORI": stori_tasas,
+        "KUBO": kubo_tasas,
+        "LEVA": leva_tasas
     }
  
     with open(DATA_PATH, "w", encoding="utf-8") as f:
