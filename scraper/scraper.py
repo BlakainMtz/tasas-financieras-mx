@@ -1040,15 +1040,22 @@ def _parsear_texto_stori(texto):
 # mano y se intenta el scrape en vivo con Playwright (por si en el futuro la
 # tabla queda en el HTML renderizado).
 #
-# Tasas verificadas (Tasas.mx corte 8-sep-2026 + Expansión 24-jul-2026):
+# Tasas verificadas (Tasas.mx corte 16-sep-2026, coincide con tabla oficial
+# kubo.plazofijo vía iKiwi):
+#   - 1 mes   (28 d):  7.60%
 #   - 3 meses (91 d): 11.00%
-#   - 1 año  (360 d): 12.00%   <- tasa máxima, muy por encima de CETES
+#   - 6 meses (182 d): 9.10%
+#   - 1 año  (360 d): 12.00%   <- mejor tasa, muy por encima de CETES
+# OJO: la tasa de kubo sube con el monto invertido; estos valores son la mejor
+# tasa disponible que reporta Tasas.mx (mismo criterio que las demás filas).
 # kubo.ahorro (a la vista) rinde hasta 9%, pero su plazo fijo es lo destacable.
 # ACTUALIZA a mano cuando kubo cambie tasas.
 KUBO_TASAS_URL = "https://www.kubofinanciero.com/ley-transparencia/kubo-plazofijo-tasas"
 KUBO_FALLBACK = {
     "a_la_vista": 9.00,   # kubo.ahorro, hasta 9% (disponibilidad inmediata)
+    "1_mes": 7.60,        # 28 días
     "3_meses": 11.00,     # 91 días
+    "6_meses": 9.10,      # 182 días
     "1_ano": 12.00,       # 360 días — mejor tasa
 }
  
@@ -1141,20 +1148,26 @@ def _parsear_texto_kubo(texto):
 # se usa un respaldo verificado (patrón Openbank/Plata/Kubo).
 #
 # Producto: Leva Invierte (SOFIPO Sociedad de Alternativas Económicas, SAE).
-# Monto mínimo de inversión: $20,000. Plazo fijo (sin liquidez a la vista).
-# Tasas verificadas (comparadores DeCeroalInfinito/Tasas.mx, ago-sep 2026):
-#   - 3 meses (90 d):  9.75%
-#   - 6 meses (180 d): 11.00%
-#   - 12 meses (360 d):13.25%
-#   - 24 meses (720 d):14.25%  <- tasa máxima (la que anuncia "hasta 14%+")
+# Plazo fijo (sin liquidez a la vista). Tiene DOS niveles:
+#   - Leva Invierte      (base): invierte desde $20,000
+#   - Leva Invierte +   (Plata): invierte desde $100,000  <- USAMOS ESTE (tasas más altas)
+# Igual que Klar/Plata usan su nivel Plus, la tabla muestra el nivel "+".
+# Tasas verificadas del tabulador oficial de Leva (nivel "+", sep 2026):
+#   -  3 meses:  9.50%
+#   -  6 meses: 10.75%
+#   - 12 meses: 13.00%
+#   - 18 meses: 13.50%
+#   - 24 meses: 14.00%  <- tasa máxima (la que anuncia "hasta 14%")
+# (Nivel base, referencia: 3m 9.00 / 6m 10.25 / 12m 11.75 / 18m 12.25 / 24m 12.50)
 # ACTUALIZA a mano cuando Leva cambie tasas.
 LEVA_URL = "https://levainvierte.com/"
 LEVA_FALLBACK = {
-    "tasa_max": 14.25,    # 24 meses — la más alta que anuncia
-    "3_meses": 9.75,      # 90 días
-    "6_meses": 11.00,     # 180 días
-    "1_ano": 13.25,       # 360 días
-    "2_anos": 14.25,      # 720 días
+    "tasa_max": 14.00,    # 24 meses (Leva +) — la más alta que anuncia
+    "3_meses": 9.50,      # 90 días  (Leva +)
+    "6_meses": 10.75,     # 180 días (Leva +)
+    "1_ano": 13.00,       # 360 días (Leva +)
+    "18_meses": 13.50,    # 540 días (Leva +)
+    "2_anos": 14.00,      # 720 días (Leva +)
 }
  
  
@@ -1213,21 +1226,34 @@ def obtener_tasas_leva(browser=None):
  
  
 def _parsear_texto_leva(texto):
-    """Extrae pares plazo-tasa de la calculadora de Leva (si el JS los expone)."""
+    """Extrae pares plazo-tasa de la calculadora de Leva (si el JS los expone).
+ 
+    La calculadora muestra DOS columnas por plazo: Leva Invierte (base) y
+    Leva Invierte + (Plata, desde $100,000). Queremos SIEMPRE la del nivel "+",
+    que es la más alta de cada plazo — así que por cada plazo nos quedamos con
+    el MÁXIMO valor encontrado (igual criterio que Klar/Plata con su nivel Plus).
+    """
+    meses_a_clave = {3: "3_meses", 6: "6_meses", 12: "1_ano",
+                     18: "18_meses", 24: "2_anos"}
     out = {}
-    for m in re.finditer(r'(\d{1,2})\s*meses?\s*[^%\d]{0,20}?(\d+(?:\.\d+)?)\s*%', texto, re.IGNORECASE):
-        meses = int(m.group(1))
-        tasa = float(m.group(2))
-        if not (8 <= tasa <= 16):
+    # Por cada fila "N meses ... tasaBase% ... tasa+%" capturamos TODAS las
+    # tasas que aparecen tras el plazo (hasta el siguiente "meses") y nos
+    # quedamos con la MÁS ALTA = nivel "+" (desde $100,000).
+    tokens = re.split(r'(\d{1,2})\s*meses?', texto, flags=re.IGNORECASE)
+    # tokens = [prefacio, plazo1, resto1, plazo2, resto2, ...]
+    for i in range(1, len(tokens) - 1, 2):
+        try:
+            meses = int(tokens[i])
+        except ValueError:
             continue
-        if meses == 3:
-            out.setdefault("3_meses", tasa)
-        elif meses == 6:
-            out.setdefault("6_meses", tasa)
-        elif meses == 12:
-            out.setdefault("1_ano", tasa)
-        elif meses == 24:
-            out.setdefault("2_anos", tasa)
+        clave = meses_a_clave.get(meses)
+        if not clave:
+            continue
+        resto = tokens[i + 1]
+        tasas = [float(x) for x in re.findall(r'(\d+(?:\.\d+)?)\s*%', resto)
+                 if 8 <= float(x) <= 16]
+        if tasas:
+            out[clave] = max(tasas)  # nivel "+"
     return out
  
 # =========================
