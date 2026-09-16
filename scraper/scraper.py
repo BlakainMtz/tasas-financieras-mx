@@ -1162,7 +1162,9 @@ def _parsear_texto_kubo(texto):
 # ACTUALIZA a mano cuando Leva cambie tasas.
 LEVA_URL = "https://levainvierte.com/"
 LEVA_FALLBACK = {
-    "tasa_max": 14.00,    # 24 meses (Leva +) — la más alta que anuncia
+    # Leva es PLAZO FIJO: no lleva 'a_la_vista' ni 'tasa_max' (eso lo usarían
+    # la tabla y el comparador como tasa a la vista, lo cual es engañoso).
+    "titular_max": 14.00, # solo informativo (24 meses Leva +); no es "a la vista"
     "3_meses": 9.50,      # 90 días  (Leva +)
     "6_meses": 10.75,     # 180 días (Leva +)
     "1_ano": 13.00,       # 360 días (Leva +)
@@ -1215,10 +1217,13 @@ def obtener_tasas_leva(browser=None):
     for k, v in detectadas.items():
         if v is not None:
             resultado[k] = v
-    # Si el titular en vivo es mayor/menor, actualizar la tasa_max mostrada
+    # IMPORTANTE: Leva es plazo fijo y NO tiene tasa "a la vista". No emitimos
+    # la clave 'tasa_max' porque el comparador y la tabla la usarían como tasa
+    # "a la vista" (engañoso: esa tasa es a 24 meses). Guardamos el titular solo
+    # como dato informativo en 'titular_max', que ninguna herramienta usa para
+    # el plazo "a la vista".
     if tasa_titular:
-        # el titular suele ser la de 24m; solo lo usamos si es coherente
-        resultado["tasa_max"] = max(resultado.get("tasa_max", 0), tasa_titular)
+        resultado["titular_max"] = tasa_titular
     if not detectadas and not tasa_titular:
         print("WARN: Leva sin datos en vivo; usando LEVA_FALLBACK completo")
     print("Leva resultado:", resultado)
