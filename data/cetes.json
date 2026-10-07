@@ -1,5 +1,5 @@
 {
-  "last_update": "2026-10-06T22:39:17.061710+00:00",
+  "last_update": "2026-10-07T23:03:27.590021+00:00",
   "CETES": {
     "1_mes": 6.09,
     "3_meses": 6.78,
@@ -7,7 +7,7 @@
     "1_ano": 7.44
   },
   "BONDDIA": {
-    "a_la_vista": 6.26
+    "a_la_vista": 6.29
   },
   "NU": {
     "a_la_vista": null,
@@ -62,13 +62,13 @@
   "PLATA": {
     "a_la_vista": 15.0,
     "tasa_max": 15.0,
-    "flexible": 9.0,
+    "flexible": 8.5,
     "flexible_base": 7.0,
     "ultra_promo": 15.0,
     "1_mes": 9.0,
     "3_meses": 9.25,
     "6_meses": 9.5,
-    "1_ano": 11.0
+    "1_ano": 10.5
   },
   "STORI": {
     "a_la_vista": 7.0,
