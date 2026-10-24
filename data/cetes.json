@@ -1,5 +1,5 @@
 {
-  "last_update": "2026-10-23T21:21:58.059803+00:00",
+  "last_update": "2026-10-24T20:44:24.766872+00:00",
   "CETES": {
     "1_mes": 6.23,
     "3_meses": 6.75,
@@ -7,7 +7,7 @@
     "1_ano": 7.11
   },
   "BONDDIA": {
-    "a_la_vista": 6.96
+    "a_la_vista": 6.52
   },
   "NU": {
     "a_la_vista": null,
@@ -27,7 +27,7 @@
     "a_la_vista": 15.0
   },
   "REVOLUT": {
-    "a_la_vista": 15.0
+    "a_la_vista": null
   },
   "MIFEL": {
     "a_la_vista": 10.0
