@@ -1,5 +1,5 @@
 {
-  "last_update": "2026-10-31T21:29:40.613072+00:00",
+  "last_update": "2026-11-01T21:59:32.134833+00:00",
   "CETES": {
     "1_mes": 6.22,
     "3_meses": 6.69,
@@ -33,11 +33,11 @@
     "a_la_vista": 10.0
   },
   "SUPERTASAS": {
-    "a_la_vista": 6.3,
-    "1_mes": 6.4,
-    "3_meses": 7.1,
-    "6_meses": 8.5,
-    "1_ano": 10.0
+    "a_la_vista": 6.2,
+    "1_mes": 6.3,
+    "3_meses": 6.5,
+    "6_meses": 8.0,
+    "1_ano": 8.9
   },
   "FINSUS": {
     "a_la_vista": 7.01,
